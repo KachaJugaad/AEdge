@@ -1,0 +1,15 @@
+{
+  "name": "anomedge",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "test":  "pnpm -r test",
+    "gate:0": "ts-node gate-tests/phase0.gate.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^20.12.0",
+    "vitest": "^1.4.0"
+  }
+}
