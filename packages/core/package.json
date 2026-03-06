@@ -1,0 +1,13 @@
+{
+  "name": "@anomedge/core",
+  "version": "1.0.0",
+  "description": "AnomEdge core — FeatureEngine, RuleEngine, InferenceChain",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anomedge/contracts": "workspace:*"
+  }
+}
