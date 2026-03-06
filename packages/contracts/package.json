@@ -1,0 +1,9 @@
+{
+  "name": "@anomedge/contracts",
+  "version": "1.0.0",
+  "description": "AnomEdge shared contracts — FROZEN after Day 1 merge",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run"
+  }
+}
