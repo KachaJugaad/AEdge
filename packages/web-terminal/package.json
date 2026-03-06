@@ -1,0 +1,20 @@
+{
+  "name": "@anomedge/web-terminal",
+  "version": "1.0.0",
+  "description": "AnomEdge demo runner — colored CLI scenario replay",
+  "main": "src/demo.ts",
+  "scripts": {
+    "demo":  "ts-node src/demo.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anomedge/contracts": "workspace:*",
+    "@anomedge/bus":       "workspace:*",
+    "@anomedge/core":      "workspace:*"
+  },
+  "devDependencies": {
+    "ts-node":     "^10.9.2",
+    "typescript":  "^5.4.0",
+    "@types/node": "^20.12.0"
+  }
+}

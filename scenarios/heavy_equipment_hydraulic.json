@@ -1,0 +1,32 @@
+{
+  "_comment": "Scenario: Cat 320 excavator with simultaneous hydraulic, thermal, and DEF faults. hydraulic_pressure spikes from 2000 to 2650 kPa (delta 650 > 500 threshold) → hydraulic_spike. transmission_temp rises to 118°C (>110) → transmission_heat_flag. fuel_level at 12% (<15%) → fuel_level_low. Should trigger 3 rules simultaneously on later frames.",
+  "name": "heavy_equipment_hydraulic",
+  "vehicle_class": "LIGHT_TRUCK",
+  "asset_id": "CAT-320-001",
+  "driver_id": "DRV-SIM",
+  "expected_alerts": ["hydraulic_spike_rule", "transmission_heat_flag", "fuel_level_low"],
+  "expected_max_severity": "HIGH",
+  "frames": [
+    { "ts_offset_ms": 0, "signals": { "hydraulic_pressure": 2000, "transmission_temp": 85.0, "fuel_level": 14.0, "engine_rpm": 1800, "engine_load": 60 } },
+    { "ts_offset_ms":  1000, "signals": { "hydraulic_pressure": 2020, "transmission_temp": 88.0, "fuel_level": 13.9, "engine_rpm": 1820, "engine_load": 62 } },
+    { "ts_offset_ms":  2000, "signals": { "hydraulic_pressure": 2010, "transmission_temp": 91.0, "fuel_level": 13.8, "engine_rpm": 1810, "engine_load": 61 } },
+    { "ts_offset_ms":  3000, "signals": { "hydraulic_pressure": 2030, "transmission_temp": 94.0, "fuel_level": 13.7, "engine_rpm": 1830, "engine_load": 63 } },
+    { "ts_offset_ms":  4000, "signals": { "hydraulic_pressure": 2015, "transmission_temp": 97.0, "fuel_level": 13.6, "engine_rpm": 1815, "engine_load": 61 } },
+    { "ts_offset_ms":  5000, "signals": { "hydraulic_pressure": 2025, "transmission_temp": 99.0, "fuel_level": 13.5, "engine_rpm": 1825, "engine_load": 62 } },
+    { "ts_offset_ms":  6000, "signals": { "hydraulic_pressure": 2010, "transmission_temp": 101.5, "fuel_level": 13.4, "engine_rpm": 1810, "engine_load": 61 } },
+    { "ts_offset_ms":  7000, "signals": { "hydraulic_pressure": 2020, "transmission_temp": 104.0, "fuel_level": 13.3, "engine_rpm": 1820, "engine_load": 62 } },
+    { "ts_offset_ms":  8000, "signals": { "hydraulic_pressure": 2030, "transmission_temp": 106.5, "fuel_level": 13.2, "engine_rpm": 1830, "engine_load": 63 } },
+    { "ts_offset_ms":  9000, "signals": { "hydraulic_pressure": 2015, "transmission_temp": 108.5, "fuel_level": 13.1, "engine_rpm": 1815, "engine_load": 62 } },
+    { "ts_offset_ms": 10000, "signals": { "hydraulic_pressure": 2650, "transmission_temp": 111.0, "fuel_level": 13.0, "engine_rpm": 1850, "engine_load": 72 } },
+    { "ts_offset_ms": 11000, "signals": { "hydraulic_pressure": 2640, "transmission_temp": 113.0, "fuel_level": 12.9, "engine_rpm": 1845, "engine_load": 71 } },
+    { "ts_offset_ms": 12000, "signals": { "hydraulic_pressure": 2630, "transmission_temp": 115.0, "fuel_level": 12.8, "engine_rpm": 1840, "engine_load": 70 } },
+    { "ts_offset_ms": 13000, "signals": { "hydraulic_pressure": 2620, "transmission_temp": 116.5, "fuel_level": 12.7, "engine_rpm": 1835, "engine_load": 69 } },
+    { "ts_offset_ms": 14000, "signals": { "hydraulic_pressure": 2610, "transmission_temp": 117.5, "fuel_level": 12.6, "engine_rpm": 1830, "engine_load": 68 } },
+    { "ts_offset_ms": 15000, "signals": { "hydraulic_pressure": 2600, "transmission_temp": 118.0, "fuel_level": 12.5, "engine_rpm": 1825, "engine_load": 67 } },
+    { "ts_offset_ms": 16000, "signals": { "hydraulic_pressure": 2590, "transmission_temp": 118.0, "fuel_level": 12.4, "engine_rpm": 1820, "engine_load": 66 } },
+    { "ts_offset_ms": 17000, "signals": { "hydraulic_pressure": 2580, "transmission_temp": 117.5, "fuel_level": 12.3, "engine_rpm": 1815, "engine_load": 65 } },
+    { "ts_offset_ms": 18000, "signals": { "hydraulic_pressure": 2570, "transmission_temp": 117.0, "fuel_level": 12.2, "engine_rpm": 1810, "engine_load": 64 } },
+    { "ts_offset_ms": 19000, "signals": { "hydraulic_pressure": 2560, "transmission_temp": 116.5, "fuel_level": 12.1, "engine_rpm": 1808, "engine_load": 63 } },
+    { "ts_offset_ms": 20000, "signals": { "hydraulic_pressure": 2550, "transmission_temp": 116.0, "fuel_level": 12.0, "engine_rpm": 1805, "engine_load": 62 } }
+  ]
+}
