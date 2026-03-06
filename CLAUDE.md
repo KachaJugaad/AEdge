@@ -4,6 +4,20 @@
 Edge AI platform for vehicle anomaly detection.
 Runs on mobile (Flutter), web (WASM), IoT (Rust binary), and cloud (Node.js).
 
+
+## Architecture Documents (Read These)
+- NEXT_STEPS_ARCHITECTURE.md  — language decisions, fallback chain, bus contracts, timeline
+- PERSONA_A_SETUP_GUIDE.md    — complete code for all adapters, FeatureEngine, RuleEngine
+
+These documents are your source of truth. When building any module, 
+read the relevant section of these documents first.
+HEREDOC
+
+# Copy the architecture docs into the project
+# (if they're in Downloads or elsewhere)
+cp ~/Downloads/NEXT_STEPS_ARCHITECTURE.md ~/anomedge/
+cp ~/Downloads/PERSONA_A_SETUP_GUIDE.md   ~/anomedge/
+
 ## Three-Person Team
 - Person A (YOU): Rust crates — contracts, adapters, FeatureEngine, RuleEngine, TrustEngine, InferenceChain
 - Person B: Flutter app — subscribes decisions.gated, publishes actions
