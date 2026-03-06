@@ -1,0 +1,205 @@
+# policy/policy.yaml
+# AnomEdge vehicle policy — version 1.0
+# ALL thresholds live here. Never hardcode a number in Rust.
+# Change a threshold: edit this file and redeploy. No code change needed.
+#
+# vehicle_class: LIGHT_TRUCK covers OBD2_GENERIC, FORD_F450, and generic diesels.
+# Heavy-equipment rules live in policy/policy_heavy.yaml (Cat/JD fleet).
+#
+# signal field supports:
+#   top-level FeatureWindow fields:  coolant_slope, brake_spike_count,
+#     speed_mean, rpm_mean, engine_load_mean, throttle_variance,
+#     hydraulic_spike (0/1), transmission_heat (0/1), dtc_new_count
+#   nested snapshot:  signals_snapshot.coolant_temp, signals_snapshot.engine_rpm, etc.
+#
+# operators: gt | lt | gte | lte | eq | contains
+
+version: "1.0"
+vehicle_class: LIGHT_TRUCK
+
+rules:
+  # ── Thermal ──────────────────────────────────────────────────────────────────
+
+  - id: coolant_high_temp
+    group: thermal
+    signal: signals_snapshot.coolant_temp
+    operator: gt
+    threshold: 100.0
+    severity: HIGH
+    cooldown_ms: 30000
+    hysteresis: 2.0
+    description: "Coolant temperature above 100°C — address soon"
+
+  - id: coolant_overheat_critical
+    group: thermal
+    signal: signals_snapshot.coolant_temp
+    operator: gte
+    threshold: 108.0
+    severity: CRITICAL
+    cooldown_ms: 15000
+    hysteresis: 1.0
+    description: "Coolant at critical overheating threshold — stop operating"
+
+  - id: coolant_rising_fast
+    group: thermal
+    signal: coolant_slope
+    operator: gt
+    threshold: 0.8
+    severity: CRITICAL
+    cooldown_ms: 20000
+    hysteresis: 0.1
+    description: "Coolant temperature rising rapidly (slope > 0.8 °C/sample)"
+
+  - id: intake_air_hot
+    group: thermal
+    signal: signals_snapshot.intake_air_temp
+    operator: gt
+    threshold: 55.0
+    severity: WATCH
+    cooldown_ms: 60000
+    hysteresis: 3.0
+    description: "Intake air temperature elevated — check air filter"
+
+  # ── Braking ──────────────────────────────────────────────────────────────────
+
+  - id: harsh_brake_event
+    group: braking
+    signal: brake_spike_count
+    operator: gte
+    threshold: 3.0
+    severity: WARN
+    cooldown_ms: 60000
+    hysteresis: 0.0
+    description: "Multiple harsh braking events in 30-second window"
+
+  - id: excessive_braking
+    group: braking
+    signal: brake_spike_count
+    operator: gte
+    threshold: 5.0
+    severity: HIGH
+    cooldown_ms: 30000
+    hysteresis: 0.0
+    description: "Excessive harsh braking — driver coaching recommended"
+
+  # ── Speed ────────────────────────────────────────────────────────────────────
+
+  - id: speed_over_limit_watch
+    group: speed
+    signal: speed_mean
+    operator: gt
+    threshold: 110.0
+    severity: WATCH
+    cooldown_ms: 60000
+    hysteresis: 2.0
+    description: "Average speed above 110 km/h"
+
+  - id: speed_over_limit_high
+    group: speed
+    signal: speed_mean
+    operator: gt
+    threshold: 130.0
+    severity: HIGH
+    cooldown_ms: 30000
+    hysteresis: 2.0
+    description: "Average speed dangerously high (> 130 km/h)"
+
+  # ── Transmission ─────────────────────────────────────────────────────────────
+
+  - id: transmission_overheat
+    group: transmission
+    signal: signals_snapshot.transmission_temp
+    operator: gt
+    threshold: 110.0
+    severity: HIGH
+    cooldown_ms: 30000
+    hysteresis: 2.0
+    description: "Transmission fluid temperature above 110°C"
+
+  - id: transmission_heat_flag
+    group: transmission
+    signal: transmission_heat
+    operator: gte
+    threshold: 1.0
+    severity: HIGH
+    cooldown_ms: 30000
+    hysteresis: 0.0
+    description: "Transmission heat flag raised in 30-second window"
+
+  # ── Electrical ───────────────────────────────────────────────────────────────
+
+  - id: low_battery_voltage
+    group: electrical
+    signal: signals_snapshot.battery_voltage
+    operator: lt
+    threshold: 11.5
+    severity: WARN
+    cooldown_ms: 120000
+    hysteresis: 0.2
+    description: "Battery voltage below 11.5V — check charging system"
+
+  - id: critical_battery_voltage
+    group: electrical
+    signal: signals_snapshot.battery_voltage
+    operator: lt
+    threshold: 10.0
+    severity: CRITICAL
+    cooldown_ms: 60000
+    hysteresis: 0.2
+    description: "Battery voltage critically low — vehicle may lose power"
+
+  # ── DTC ──────────────────────────────────────────────────────────────────────
+
+  - id: dtc_new_codes
+    group: dtc
+    signal: dtc_new_count
+    operator: gt
+    threshold: 0.0
+    severity: WARN
+    cooldown_ms: 300000
+    hysteresis: 0.0
+    description: "New diagnostic trouble code(s) detected"
+
+  # ── Fuel ─────────────────────────────────────────────────────────────────────
+
+  - id: fuel_level_low
+    group: fuel
+    signal: signals_snapshot.fuel_level
+    operator: lt
+    threshold: 15.0
+    severity: WATCH
+    cooldown_ms: 600000
+    hysteresis: 2.0
+    description: "Fuel level below 15%"
+
+  - id: fuel_level_critical
+    group: fuel
+    signal: signals_snapshot.fuel_level
+    operator: lt
+    threshold: 5.0
+    severity: HIGH
+    cooldown_ms: 300000
+    hysteresis: 1.0
+    description: "Fuel level critically low — refuel immediately"
+
+  # ── Engine ───────────────────────────────────────────────────────────────────
+
+  - id: engine_overload
+    group: composite
+    signal: engine_load_mean
+    operator: gt
+    threshold: 90.0
+    severity: WARN
+    cooldown_ms: 60000
+    hysteresis: 2.0
+    description: "Engine load average above 90% — check for towing overload"
+
+  - id: high_idle_rpm
+    group: composite
+    signal: signals_snapshot.engine_rpm
+    operator: gt
+    threshold: 4500.0
+    severity: WARN
+    cooldown_ms: 30000
+    hysteresis: 100.0
+    description: "Engine RPM sustained above 4500 — possible over-rev"

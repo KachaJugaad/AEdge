@@ -8,6 +8,7 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
-    "@anomedge/contracts": "workspace:*"
+    "@anomedge/contracts": "workspace:*",
+    "@anomedge/bus":       "workspace:*"
   }
 }
