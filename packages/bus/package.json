@@ -1,16 +1,18 @@
 {
   "name": "@anomedge/bus",
   "version": "1.0.0",
-  "description": "AnomEdge in-process EventBus — Phase 0 (sync, in-memory)",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "build": "tsc",
     "test": "vitest run",
-    "build": "tsc --noEmit"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anomedge/contracts": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "^1.4.0"
+    "vitest": "^1.4.0",
+    "typescript": "^5.4.0"
   }
 }
