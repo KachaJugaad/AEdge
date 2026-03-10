@@ -3,13 +3,14 @@
   "private": true,
   "scripts": {
     "build": "pnpm -r build",
-    "test":  "pnpm -r test",
-    "gate:0": "ts-node gate-tests/phase0.gate.ts"
+    "test": "pnpm -r test",
+    "gate:0": "ts-node -r tsconfig-paths/register --project gate-tests/tsconfig.json gate-tests/phase0.gate.ts"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "ts-node": "^10.9.2",
     "@types/node": "^20.12.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.4.0",
     "vitest": "^1.4.0"
   }
 }
