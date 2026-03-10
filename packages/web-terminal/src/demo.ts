@@ -9,8 +9,9 @@
 import fs   from 'node:fs';
 import path from 'node:path';
 
-import type { Decision, PolicyPack, SignalEvent } from '@anomedge/contracts';
+import type { Decision, EventEnvelope, PolicyPack, SignalEvent } from '@anomedge/contracts';
 import { EventBus }        from '@anomedge/bus';
+// @ts-ignore — @anomedge/core has no declaration file (build is --noEmit)
 import { createPipeline }  from '@anomedge/core';
 
 // ─── ANSI colours ─────────────────────────────────────────────────────────────
@@ -115,10 +116,10 @@ function parseMinimalYaml(yaml: string): PolicyPack {
   if (current?.id) rules.push(current as PolicyPack['rules'][number]);
 
   return {
-    version:     '1.0',
-    description: 'AnomEdge policy (demo)',
+    version:       '1.0',
+    vehicle_class: 'SIMULATOR',
     rules,
-  };
+  } as PolicyPack;
 }
 
 function buildSignalEvent(
@@ -132,23 +133,12 @@ function buildSignalEvent(
     if (typeof v === 'number') extra[k] = v;
   }
   return {
-    ts:                 baseTs + frame.ts_offset_ms,
-    asset_id:           assetId,
-    coolant_temp:       typeof s['coolant_temp']        === 'number' ? s['coolant_temp']        : undefined,
-    engine_rpm:         typeof s['engine_rpm']          === 'number' ? s['engine_rpm']          : undefined,
-    vehicle_speed:      typeof s['vehicle_speed']       === 'number' ? s['vehicle_speed']        : undefined,
-    throttle_position:  typeof s['throttle_position']   === 'number' ? s['throttle_position']   : undefined,
-    engine_load:        typeof s['engine_load']         === 'number' ? s['engine_load']          : undefined,
-    brake_pressure:     typeof s['brake_pressure']      === 'number' ? s['brake_pressure']       : undefined,
-    fuel_level:         typeof s['fuel_level']          === 'number' ? s['fuel_level']           : undefined,
-    battery_voltage:    typeof s['battery_voltage']     === 'number' ? s['battery_voltage']      : undefined,
-    hydraulic_pressure: typeof s['hydraulic_pressure']  === 'number' ? s['hydraulic_pressure']   : undefined,
-    hydraulic_spike:    typeof s['hydraulic_spike']     === 'boolean' ? s['hydraulic_spike']     : undefined,
-    transmission_temp:  typeof s['transmission_temp']   === 'number' ? s['transmission_temp']    : undefined,
-    transmission_heat:  typeof s['transmission_heat']   === 'boolean' ? s['transmission_heat']   : undefined,
-    dtc_codes:          [],
-    signals_snapshot:   extra,
-  };
+    ts:        baseTs + frame.ts_offset_ms,
+    asset_id:  assetId,
+    driver_id: 'DRV-DEMO',
+    source:    'SIMULATOR',
+    signals:   extra,
+  } as SignalEvent;
 }
 
 function severityRank(sev: string): number {
@@ -169,7 +159,8 @@ async function runScenario(scenarioName: string, policyFile: string): Promise<bo
   let maxSeverity = '';
 
   // Collect gated decisions
-  bus.subscribe('decisions.gated', (d: Decision) => {
+  bus.subscribe<Decision>('decisions.gated', (envelope: EventEnvelope<Decision>) => {
+    const d = envelope.payload;
     const color = severityColor(d.severity);
     const rank  = severityRank(d.severity);
     if (rank > maxSeverityRank) {
