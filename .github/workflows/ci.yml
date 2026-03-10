@@ -1,0 +1,81 @@
+name: CI — Build & Gate
+
+# Trigger on every push to main and on every PR targeting main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel any in-progress run for the same PR or branch so redundant
+# runs don't queue up and waste minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-gate:
+    name: Build, Test & Gate:0
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Source ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Toolchain ───────────────────────────────────────────────────────
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # pnpm-lock.yaml lockfileVersion 9.0 requires pnpm v9.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # ── 3. Cache ───────────────────────────────────────────────────────────
+      # Cache the pnpm content-addressable store so repeated installs are fast.
+      # The cache key includes the lockfile hash; any lockfile change busts it.
+      - name: Restore pnpm store cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      # ── 4. Install ─────────────────────────────────────────────────────────
+      # --frozen-lockfile: fail if pnpm-lock.yaml is out of sync with
+      # package.json files. Prevents "works locally, breaks in CI" drift.
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # ── 5. Build ───────────────────────────────────────────────────────────
+      # Build order enforced by pnpm workspace topology:
+      #   @anomedge/contracts  (no build script — skipped safely)
+      #   @anomedge/bus        tsc → dist/
+      #   @anomedge/core       tsc --noEmit
+      #   @anomedge/web-terminal  tsc (no tsconfig yet — skipped safely)
+      #
+      # --if-present skips packages where the "build" script is not declared.
+      # Packages that DO declare it but fail will still break the job.
+      - name: Build all packages
+        run: pnpm -r --if-present build
+
+      # ── 6. Unit tests ──────────────────────────────────────────────────────
+      # Runs vitest in each workspace package that declares a "test" script.
+      # Coverage: @anomedge/contracts, @anomedge/bus, @anomedge/core,
+      #           @anomedge/cloud-api (note: cloud-api not in pnpm-workspace.yaml
+      #           so it will not be picked up here — intentional for now).
+      # @anomedge/web-terminal has no test script and is skipped safely.
+      - name: Run unit tests (all workspace packages)
+        run: pnpm -r --if-present test
+
+      # ── 7. Phase-0 gate ────────────────────────────────────────────────────
+      # This is THE merge gate. Validates cross-package integration:
+      # EventBus topics, contract shapes, and the decisions.gated handoff.
+      # A non-zero exit code here MUST fail the job — no continue-on-error.
+      - name: Run phase:0 gate
+        run: pnpm gate:0
