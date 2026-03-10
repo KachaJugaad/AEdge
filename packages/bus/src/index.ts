@@ -1,103 +1,180 @@
-//! packages/bus/src/index.ts
-//! In-process synchronous EventBus — Phase 0.
-//!
-//! Phase 0: all subscribers run synchronously in publish() order.
-//! Phase 1: replace with WebSocket broker (same API, drop-in swap).
-//!
-//! Topics and payload types are imported from @anomedge/contracts so
-//! Person B and Person C always work from the same type source.
+// packages/bus/src/index.ts
+// In-process synchronous EventBus — Phase 0.
+//
+// Phase 0: all subscribers run synchronously in publish() order.
+// Phase 1: replace with WebSocket broker (same API, drop-in swap).
+//
+// Topics and payload types are imported from @anomedge/contracts so
+// Person B and Person C always work from the same type source.
 
 import type {
   BusTopic,
-  Decision,
   EventEnvelope,
-  FeatureWindow,
-  SignalEvent,
 } from '@anomedge/contracts';
 
-// ─── Typed subscriber callback ────────────────────────────────────────────────
+// ── Metrics types ──────────────────────────────────────────────────────────
+
+export type BusMetrics = {
+  [topic: string]: { p50: number; p95: number; p99: number; count: number };
+};
+
+// ── Ring buffer for latency samples ────────────────────────────────────────
+
+const RING_SIZE = 1000;
+
+class LatencyRing {
+  private readonly samples: number[] = [];
+  private pos = 0;
+  private full = false;
+
+  push(value: number): void {
+    if (this.samples.length < RING_SIZE) {
+      this.samples.push(value);
+    } else {
+      this.samples[this.pos] = value;
+      this.full = true;
+    }
+    this.pos = (this.pos + 1) % RING_SIZE;
+  }
+
+  getAll(): number[] {
+    return this.samples.slice();
+  }
+
+  get length(): number {
+    return this.samples.length;
+  }
+}
+
+function percentile(sorted: number[], pct: number): number {
+  const idx = Math.floor(sorted.length * pct);
+  return sorted[Math.min(idx, sorted.length - 1)];
+}
+
+// ── Subscriber type ────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Subscriber<T = any> = (payload: T, envelope: EventEnvelope<T>) => void;
+type Handler<T = any> = (envelope: EventEnvelope<T>) => void;
 
-// ─── Topic payload map (compile-time type safety) ────────────────────────────
-
-export interface TopicPayloads {
-  'signals.raw':      SignalEvent;
-  'signals.features': FeatureWindow;
-  'decisions':        Decision;
-  'decisions.gated':  Decision;
-  'actions':          unknown;
-  'telemetry.sync':   unknown;
-  'model.ota':        unknown;
-  'system.heartbeat': unknown;
-  'system.error':     unknown;
-}
-
-// ─── Monotonic sequence counters per topic ────────────────────────────────────
-
-const topicSeq: Partial<Record<BusTopic, number>> = {};
-
-function nextSeq(topic: BusTopic): number {
-  topicSeq[topic] = (topicSeq[topic] ?? 0) + 1;
-  return topicSeq[topic]!;
-}
-
-// Lightweight deterministic ID — no uuid dependency needed for Phase 0.
-let _idCounter = 0;
-function nextId(): string {
-  return `ae-${Date.now()}-${++_idCounter}`;
-}
-
-// ─── EventBus ────────────────────────────────────────────────────────────────
+// ── EventBus ──────────────────────────────────────────────────────────────
 
 export class EventBus {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private readonly _subs: Map<BusTopic, Set<Subscriber<any>>> = new Map();
+  private _subs: Map<BusTopic, Set<Handler<any>>> = new Map();
+  private _seq = 0;
+  private _latencies: Map<string, LatencyRing> = new Map();
+  private _counts: Map<string, number> = new Map();
 
-  // ── Subscribe ──────────────────────────────────────────────────────────────
+  // ── Publish ──────────────────────────────────────────────────────────────
 
-  subscribe<T extends BusTopic>(
-    topic: T,
-    cb: Subscriber<TopicPayloads[T]>,
-  ): () => void {
-    if (!this._subs.has(topic)) this._subs.set(topic, new Set());
-    this._subs.get(topic)!.add(cb);
-    // Return an unsubscribe function
-    return () => this._subs.get(topic)?.delete(cb);
-  }
+  publish<T>(topic: BusTopic, payload: T): void {
+    const subs = this._subs.get(topic);
+    if (!subs || subs.size === 0) return;
 
-  // ── Publish ────────────────────────────────────────────────────────────────
+    this._seq++;
 
-  publish<T extends BusTopic>(topic: T, payload: TopicPayloads[T]): void {
-    const envelope: EventEnvelope<TopicPayloads[T]> = {
-      id:      nextId(),
+    const envelope: EventEnvelope<T> = {
+      id: crypto.randomUUID(),
       topic,
-      seq:     nextSeq(topic),
-      ts:      Date.now(),
+      seq: this._seq,
+      ts: Date.now(),
       payload,
     };
 
-    const subs = this._subs.get(topic);
-    if (!subs) return;
+    // Track count
+    this._counts.set(topic, (this._counts.get(topic) ?? 0) + 1);
 
-    for (const cb of subs) {
-      cb(payload, envelope);
+    // Deliver to each subscriber, measuring latency
+    const start = performance.now();
+    for (const handler of subs) {
+      handler(envelope);
     }
+    const elapsed = performance.now() - start;
+
+    // Record latency
+    if (!this._latencies.has(topic)) {
+      this._latencies.set(topic, new LatencyRing());
+    }
+    this._latencies.get(topic)!.push(elapsed);
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Subscribe ────────────────────────────────────────────────────────────
 
-  /** Number of subscribers currently registered for a topic. */
+  subscribe<T>(topic: BusTopic, handler: (envelope: EventEnvelope<T>) => void): () => void {
+    if (!this._subs.has(topic)) this._subs.set(topic, new Set());
+    this._subs.get(topic)!.add(handler);
+    return () => {
+      this._subs.get(topic)?.delete(handler);
+    };
+  }
+
+  // ── Once ─────────────────────────────────────────────────────────────────
+
+  once<T>(topic: BusTopic): Promise<EventEnvelope<T>> {
+    return new Promise((resolve) => {
+      const unsub = this.subscribe<T>(topic, (envelope) => {
+        unsub();
+        resolve(envelope);
+      });
+    });
+  }
+
+  // ── Consume (count-based collection) ─────────────────────────────────────
+
+  consume<T>(topic: BusTopic, handler: (envelope: EventEnvelope<T>) => void): () => void {
+    return this.subscribe<T>(topic, handler);
+  }
+
+  // ── Collect (count-based, resolves after n messages) ─────────────────────
+
+  collect<T>(topic: BusTopic, count: number): Promise<EventEnvelope<T>[]> {
+    return new Promise((resolve) => {
+      const collected: EventEnvelope<T>[] = [];
+      const unsub = this.subscribe<T>(topic, (envelope) => {
+        collected.push(envelope);
+        if (collected.length >= count) {
+          unsub();
+          resolve(collected);
+        }
+      });
+    });
+  }
+
+  // ── Metrics ──────────────────────────────────────────────────────────────
+
+  getMetrics(): BusMetrics {
+    const result: BusMetrics = {};
+    for (const [topic, ring] of this._latencies) {
+      const samples = ring.getAll();
+      if (samples.length === 0) continue;
+      const sorted = samples.slice().sort((a, b) => a - b);
+      result[topic] = {
+        p50: percentile(sorted, 0.5),
+        p95: percentile(sorted, 0.95),
+        p99: percentile(sorted, 0.99),
+        count: this._counts.get(topic) ?? 0,
+      };
+    }
+    return result;
+  }
+
+  // ── Reset ────────────────────────────────────────────────────────────────
+
+  reset(): void {
+    this._subs.clear();
+    this._seq = 0;
+    this._latencies.clear();
+    this._counts.clear();
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
   subscriberCount(topic: BusTopic): number {
     return this._subs.get(topic)?.size ?? 0;
   }
-
-  /** Remove all subscribers (useful between tests). */
-  reset(): void {
-    this._subs.clear();
-  }
 }
 
-// Export a singleton for convenience; callers may also construct their own.
+// ── Singleton and exports ─────────────────────────────────────────────────
+
 export const bus = new EventBus();
+export default EventBus;
