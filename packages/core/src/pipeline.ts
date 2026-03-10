@@ -29,8 +29,8 @@ export class Pipeline {
     this.bus           = bus;
 
     // Subscribe to signals.raw and run the full chain
-    this.bus.subscribe('signals.raw', (event: SignalEvent) => {
-      this._processEvent(event);
+    this.bus.subscribe<SignalEvent>('signals.raw', (envelope) => {
+      this._processEvent(envelope.payload);
     });
   }
 

@@ -12,9 +12,10 @@ import type {
   FeatureWindow,
   PolicyPack,
   PolicyRule,
-  RuleOperator,
   SignalMap,
 } from '@anomedge/contracts';
+
+type RuleOperator = PolicyRule['operator'];
 
 // ─── RuleEngine ───────────────────────────────────────────────────────────────
 
