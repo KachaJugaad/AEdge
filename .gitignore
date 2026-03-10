@@ -23,6 +23,14 @@ target/
 .claude/
 **/.claude/
 
+# Build output
+dist/
+**/dist/
+**/*.d.ts
+**/*.js
+!**/vite.config.*
+!**/vitest.config.*
+
 # Test caches
 **/.vite/
 
