@@ -4,19 +4,23 @@
   "scripts": {
     "build": "tsc",
     "start": "ts-node src/cli.ts",
-    "dev": "vite"
+    "dev": "vite",
+    "demo": "ts-node src/demo.ts"
   },
   "dependencies": {
     "@anomedge/bus": "workspace:*",
     "@anomedge/contracts": "workspace:*",
+    "@anomedge/core": "workspace:*",
     "chalk": "^5.3.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.4.0",
-    "ts-node": "^10.9.2"
+    "vite": "^5.0.0"
   }
 }
