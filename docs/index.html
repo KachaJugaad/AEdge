@@ -439,69 +439,54 @@
 <!-- ═══ HOW IT WORKS ═════════════════════════════════════════════════════ -->
 <section id="how" style="border-top: 1px solid var(--border);">
   <div class="section-label">How It Works</div>
-  <h2 class="section-title">From sensor to driver alert in 4 stages</h2>
+  <h2 class="section-title">Sensors in. Actionable alerts out.</h2>
   <p class="section-subtitle">
-    Every second, vehicle sensors emit raw telemetry. AnomEdge processes it through a pipeline
-    that computes features, runs inference, filters noise, and delivers a clear action to the driver's phone.
+    Every second, vehicle sensors emit raw telemetry. AnomEdge's proprietary pipeline processes it through
+    multiple layers of AI and delivers a clear, actionable alert to the driver's phone &mdash; all in under 100 milliseconds.
   </p>
 
   <div class="pipeline-visual">
     <div class="pipe-stage">
-      <div class="stage-num">STAGE 1</div>
-      <h4>Telematics Adapter</h4>
-      <p>Translates OBD2, CAN bus, or proprietary protocols into a universal SignalEvent</p>
-      <div class="latency">&lt; 1ms</div>
+      <div class="stage-num">INPUT</div>
+      <h4>Vehicle Sensors</h4>
+      <p>Hundreds of signals per second &mdash; temperature, pressure, speed, voltage, and more</p>
     </div>
     <div class="pipe-arrow">&rarr;</div>
-    <div class="pipe-stage">
-      <div class="stage-num">STAGE 2</div>
-      <h4>Feature Engine</h4>
-      <p>30-second rolling window computes slopes, spike counts, means, and variance</p>
-      <div class="latency">&lt; 2ms</div>
-    </div>
-    <div class="pipe-arrow">&rarr;</div>
-    <div class="pipe-stage">
-      <div class="stage-num">STAGE 3</div>
-      <h4>Inference Chain</h4>
-      <p>3-tier: Edge AI (ONNX) &rarr; ML Statistical &rarr; Rule Engine. Always produces a result.</p>
-      <div class="latency">&lt; 50ms</div>
-    </div>
-    <div class="pipe-arrow">&rarr;</div>
-    <div class="pipe-stage">
-      <div class="stage-num">STAGE 4</div>
-      <h4>Trust Engine</h4>
-      <p>Cooldown + hysteresis filter. Only passes alerts that genuinely matter.</p>
-      <div class="latency">&lt; 1ms</div>
+    <div class="pipe-stage" style="border-color: var(--accent);">
+      <div class="stage-num" style="color: var(--accent);">ANOMEDGE AI</div>
+      <h4>Proprietary Edge Pipeline</h4>
+      <p>Multi-layer AI analysis with intelligent noise filtering. No cloud required.</p>
+      <div class="latency">&lt; 100ms end-to-end</div>
     </div>
     <div class="pipe-arrow">&rarr;</div>
     <div class="pipe-stage" style="border-color: var(--green);">
       <div class="stage-num" style="color: var(--green);">OUTPUT</div>
       <h4 style="color: var(--green);">Driver Alert</h4>
-      <p>Title, guidance, severity, voice alert. Delivered to the mobile app instantly.</p>
-      <div class="latency" style="color: var(--green);">&lt; 100ms total</div>
+      <p>Plain-English guidance, severity level, and voice alert. Delivered to the mobile app instantly.</p>
     </div>
   </div>
 
   <div style="margin-top: 32px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
-    <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">The 3-Tier Inference Chain (Why It Never Misses)</h3>
+    <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">3-Tier AI &mdash; Why It Never Misses</h3>
     <p style="font-size: 14px; color: var(--text-muted); line-height: 1.7;">
-      AnomEdge uses a <strong>fallback chain</strong> strategy. It tries the most sophisticated method first and falls back to simpler ones:
+      AnomEdge uses a <strong>cascading fallback</strong> strategy. If the most advanced AI is unavailable or uncertain,
+      the next tier catches it. The system <strong>always</strong> produces a result &mdash; it degrades gracefully, never silently.
     </p>
     <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
       <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--accent);">
-        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px;">TIER 1 &mdash; Edge AI</div>
-        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">INT8 ONNX Neural Network</div>
-        <div style="font-size: 13px; color: var(--text-muted);">Deep learning on mel-spectrograms. Catches subtle patterns humans can't see. Timeout: 50ms.</div>
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px;">TIER 1 &mdash; Deep Learning</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Neural Network</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Catches subtle, complex patterns that humans and simple rules can't see. Optimized for edge hardware.</div>
       </div>
       <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--yellow);">
-        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); margin-bottom: 4px;">TIER 2 &mdash; ML Statistical</div>
-        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Isolation Forest</div>
-        <div style="font-size: 13px; color: var(--text-muted);">Unsupervised outlier detection on feature windows. Needs &ge;5 samples. No training labels required.</div>
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); margin-bottom: 4px;">TIER 2 &mdash; Statistical ML</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Anomaly Scoring</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Unsupervised outlier detection. No labeled training data needed. Learns what "normal" looks like.</div>
       </div>
       <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--green);">
-        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 4px;">TIER 3 &mdash; Rule Engine</div>
-        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Policy YAML Thresholds</div>
-        <div style="font-size: 13px; color: var(--text-muted);">Human-defined rules. Always fires. The safety net that never fails. Editable without recompiling.</div>
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 4px;">TIER 3 &mdash; Safety Net</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Expert Rules</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Human-defined safety thresholds. Always fires. The backstop that never fails. Configurable by fleet ops.</div>
       </div>
     </div>
   </div>
@@ -566,68 +551,62 @@
 
   <!-- Engineer -->
   <div class="audience-content" id="tab-engineer">
-    <h3>Rust core, TypeScript contracts, real-time EventBus</h3>
+    <h3>Built for performance, portability, and reliability</h3>
     <ul>
-      <li>Core inference pipeline written in <strong>Rust</strong> &mdash; zero GC pauses, compiles to WASM, iOS (via FFI), Android (JNI), and IoT binaries</li>
-      <li><strong>EventBus</strong> with topic-based pub/sub: <code>signals.raw</code> &rarr; <code>signals.features</code> &rarr; <code>decisions</code> &rarr; <code>decisions.gated</code></li>
-      <li>Feature computation: 30-second rolling window with <code>coolant_slope</code>, <code>brake_spike_count</code>, <code>speed_mean</code>, <code>hydraulic_spike</code>, etc.</li>
-      <li>INT8 ONNX inference via <code>ort</code> crate &mdash; static quantization, &lt;15MB model, &lt;2% F1 delta vs FP32</li>
-      <li>Isolation Forest for unsupervised anomaly scoring when model isn't available</li>
-      <li>Telematics adapters: OBD2 Generic, Ford F-450, Caterpillar, John Deere &mdash; each normalizes proprietary signals to <code>SignalEvent</code></li>
-      <li>All thresholds driven by <code>policy/policy.yaml</code> &mdash; never hardcoded</li>
+      <li>Core written in <strong>Rust</strong> &mdash; zero garbage collection pauses, memory-safe, compiles to WASM, iOS, Android, and IoT targets from a single codebase</li>
+      <li><strong>Multi-target deployment</strong>: same inference logic runs in-browser (WASM), on phones (FFI), on IoT gateways (native ARM), and in the cloud (replay/training)</li>
+      <li><strong>3-tier inference</strong> with graceful degradation &mdash; deep learning, statistical ML, and expert rules in a cascading fallback chain</li>
+      <li><strong>Pluggable adapters</strong> for different vehicle protocols &mdash; add new vehicle types without touching core logic</li>
+      <li><strong>Noise-filtered alerting</strong> &mdash; intelligent suppression prevents duplicate/stale alerts from reaching the driver</li>
+      <li><strong>All thresholds externalized</strong> &mdash; fleet managers adjust detection sensitivity without code changes or redeployment</li>
     </ul>
     <p style="margin-top: 16px;">
-      <strong>Test coverage:</strong> 145 tests (132 unit + 5 scenario + 8 type compatibility). CI via GitHub Actions.
+      <strong>Test coverage:</strong> 145 tests across unit, integration, and scenario-based testing. CI/CD via GitHub Actions.
     </p>
   </div>
 
   <!-- Architect -->
   <div class="audience-content" id="tab-architect">
-    <h3>Multi-target compilation, contract-first, event-driven</h3>
+    <h3>Designed for zero single points of failure</h3>
 
-    <div class="arch-diagram">
-<pre>
-<span class="highlight">COMPILATION TARGETS</span>
-  Rust Core &rarr; <span class="green">WASM</span> (browser, via wasm-bindgen)
-            &rarr; <span class="green">iOS</span>  (C FFI, Swift bridging header)
-            &rarr; <span class="green">Android</span> (JNI via cargo-ndk)
-            &rarr; <span class="green">IoT</span>  (native ARM binary, musl-linked)
-            &rarr; <span class="green">Cloud</span> (native x86_64 for server-side replay)
-
-<span class="highlight">BUS TOPOLOGY</span>
-  <span class="purple">signals.raw</span>      &rarr; FeatureEngine subscribes (1:1)
-  <span class="purple">signals.features</span> &rarr; InferenceChain subscribes (1:N decisions)
-  <span class="purple">decisions</span>        &rarr; TrustEngine subscribes (N:M gated)
-  <span class="purple">decisions.gated</span>  &rarr; <span class="yellow">Person B (Flutter)</span> subscribes
-  <span class="purple">actions</span>          &rarr; <span class="yellow">Driver-facing UI</span> subscribes
-
-<span class="highlight">CONTRACT BOUNDARIES</span> (frozen after Day 1)
-  SignalEvent  &rarr; FeatureWindow  &rarr; Decision  &rarr; Action
-  TypeScript canonical types &harr; Rust serde mirror (8 compat tests)
-
-<span class="highlight">INFERENCE CHAIN FALLBACK</span>
-  try Tier1(ONNX, 50ms timeout, &ge;0.65 confidence)
-    &rarr; fallback Tier2(IsolationForest, &ge;5 samples)
-      &rarr; fallback Tier3(RuleEngine, ALWAYS fires)
-  All tiers produce <span class="green">Decision[]</span> with <span class="green">decision_source</span> field
-
-<span class="highlight">TRUST ENGINE</span>
-  Per-rule cooldown (configurable ms) + hysteresis band
-  Prevents re-firing same rule within cooldown window
-  Hysteresis: signal must cross threshold &plusmn; band to re-trigger
-
-<span class="highlight">PERFORMANCE BUDGET</span>
-  Feature computation: <span class="green">&lt; 2ms</span> per frame
-  Rule engine:         <span class="green">&lt; 1ms</span> per evaluation
-  ONNX inference:      <span class="yellow">&lt; 50ms</span> (with fallback)
-  Total pipeline:      <span class="green">&lt; 100ms</span> p99
-</pre>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 20px;">
+      <div style="padding: 20px; background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.06em; margin-bottom: 8px;">MULTI-TARGET</div>
+        <h4 style="font-size: 15px; margin-bottom: 8px;">Write Once, Run Everywhere</h4>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+          Single Rust codebase compiles to 5 targets: browser (WASM), iOS, Android, IoT gateways, and cloud.
+          Same inference logic on every platform &mdash; no porting, no divergence.
+        </p>
+      </div>
+      <div style="padding: 20px; background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); letter-spacing: 0.06em; margin-bottom: 8px;">GRACEFUL DEGRADATION</div>
+        <h4 style="font-size: 15px; margin-bottom: 8px;">Cascading Fallback Chain</h4>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+          3-tier inference with automatic failover. If any tier is unavailable, times out, or produces low-confidence results,
+          the next tier catches it. The system <strong>always</strong> produces a result.
+        </p>
+      </div>
+      <div style="padding: 20px; background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); letter-spacing: 0.06em; margin-bottom: 8px;">PERFORMANCE</div>
+        <h4 style="font-size: 15px; margin-bottom: 8px;">&lt; 100ms p99 Pipeline Latency</h4>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+          Zero-GC Rust core with deterministic latency. No garbage collection pauses, no JIT warm-up.
+          Consistent sub-100ms performance from raw signal to driver alert under load.
+        </p>
+      </div>
+      <div style="padding: 20px; background: var(--bg-card); border-radius: 10px; border: 1px solid var(--border);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--purple); letter-spacing: 0.06em; margin-bottom: 8px;">EXTENSIBILITY</div>
+        <h4 style="font-size: 15px; margin-bottom: 8px;">Contract-First, Plugin Architecture</h4>
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+          Frozen type contracts ensure cross-team stability. Pluggable vehicle adapters and externalized policy
+          allow new vehicle types and rule sets without touching core code.
+        </p>
+      </div>
     </div>
 
-    <p style="font-size: 14px; color: var(--text-muted);">
-      The architecture is designed for <strong>zero single points of failure</strong> in the inference path.
-      Even if the ONNX runtime crashes or the ML model is corrupted, the Rule Engine tier always fires.
-      The system degrades gracefully, never silently.
+    <p style="font-size: 14px; color: var(--text-muted); margin-top: 20px;">
+      The architecture prioritizes <strong>safety over elegance</strong>. If any component fails &mdash; model corruption, runtime crash, hardware fault &mdash;
+      the system falls back, logs the degradation, and still protects the driver. It never fails silently.
     </p>
   </div>
 </section>
@@ -640,68 +619,58 @@
   <div class="features-grid">
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>Shared Contracts</h4>
-      <p>TypeScript + Rust type mirrors. SignalEvent, FeatureWindow, Decision, Action. Frozen.</p>
+      <h4>Multi-Vehicle Support</h4>
+      <p>Pluggable adapters for light trucks, heavy equipment, and construction vehicles. Add new vehicle types without code changes.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>Telematics Adapters</h4>
-      <p>OBD2 Generic, Ford F-450, Caterpillar, John Deere. 61 tests. Pluggable registry.</p>
+      <h4>Real-Time Signal Analysis</h4>
+      <p>Continuous monitoring of hundreds of sensor readings per second with proprietary feature extraction.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>Feature Engine</h4>
-      <p>30-second rolling window. Slopes, spike counts, means, variance. &lt;2ms per frame.</p>
+      <h4>18 Detection Rules</h4>
+      <p>Thermal, braking, speed, hydraulic, transmission, electrical, fuel, and engine anomalies. All configurable.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>Rule Engine</h4>
-      <p>18 rules from policy YAML. 6 operators. Group-based evaluation. &lt;1ms.</p>
+      <h4>Smart Alert Filtering</h4>
+      <p>Intelligent noise suppression eliminates alert fatigue. Only alerts that genuinely matter reach the driver.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>Trust Engine</h4>
-      <p>Per-rule cooldown + hysteresis. Eliminates alert fatigue. 8 tests.</p>
+      <h4>3-Tier AI with Fallback</h4>
+      <p>Deep learning, statistical ML, and expert rules in a cascading chain. The system always produces a result.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>3-Tier Inference Chain</h4>
-      <p>ONNX &rarr; Isolation Forest &rarr; Rule Engine fallback. 10 tests.</p>
+      <h4>Cross-Platform Deployment</h4>
+      <p>Runs in browser, on phones (iOS/Android), IoT gateways, and cloud. Same logic everywhere.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>Full Pipeline Wiring</h4>
-      <p>EventBus pub/sub connecting all stages. 5 scenario integration tests.</p>
+      <h4>Live Simulation Dashboard</h4>
+      <p>Web-based decision monitor with real-time scenario replay and mobile device preview.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-done">DONE</div>
-      <h4>FFI &amp; WASM Exports</h4>
-      <p>C-compatible FFI for iOS/Android. wasm-bindgen for browser. 18 tests.</p>
-    </div>
-    <div class="feature-item">
-      <div class="tag tag-done">DONE</div>
-      <h4>Web Terminal Dashboard</h4>
-      <p>Live decision monitor with scenario replay, mobile device preview, bus metrics.</p>
-    </div>
-    <div class="feature-item">
-      <div class="tag tag-done">DONE</div>
-      <h4>Driver Action Templates</h4>
-      <p>18 rule-specific guidance messages. "Pull over", "Visit mechanic", "Slow down". Voice alerts.</p>
+      <h4>Actionable Driver Guidance</h4>
+      <p>Rule-specific plain-English instructions. "Pull over", "Visit mechanic", "Slow down". Voice alerts for critical issues.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-wip">IN PROGRESS</div>
-      <h4>ML Statistical (Tier 2)</h4>
-      <p>Isolation Forest implementation in Rust. Unsupervised anomaly scoring.</p>
+      <h4>Advanced Anomaly Scoring</h4>
+      <p>Unsupervised ML that learns what "normal" looks like for each vehicle and flags deviations automatically.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-next">NEXT</div>
-      <h4>Flutter Mobile App</h4>
-      <p>Driver-facing app subscribing to decisions.gated. Push notifications + TTS.</p>
+      <h4>Driver Mobile App</h4>
+      <p>Native mobile app with push notifications, voice alerts (TTS), and offline-first architecture.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-next">NEXT</div>
-      <h4>ONNX Model Training</h4>
-      <p>Mel-spectrogram classifier. INT8 quantization. &lt;15MB for mobile, &lt;8MB for IoT.</p>
+      <h4>Deep Learning Models</h4>
+      <p>Neural networks optimized for edge hardware. Small enough for phones and IoT, accurate enough for safety.</p>
     </div>
     <div class="feature-item">
       <div class="tag tag-future">FUTURE</div>
