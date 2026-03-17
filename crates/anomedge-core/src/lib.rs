@@ -3,5 +3,8 @@ pub mod adapters;
 pub mod feature;
 pub mod rules;
 pub mod trust;
+pub mod ml_statistical;
 pub mod inference;
 pub mod pipeline;
+pub mod ffi;
+pub mod wasm;

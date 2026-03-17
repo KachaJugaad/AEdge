@@ -5,7 +5,7 @@
     "build": "tsc",
     "start": "ts-node src/cli.ts",
     "dev": "vite",
-    "demo": "ts-node src/demo.ts"
+    "demo": "ts-node -r tsconfig-paths/register src/demo.ts"
   },
   "dependencies": {
     "@anomedge/bus": "workspace:*",

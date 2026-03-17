@@ -104,6 +104,18 @@ rules:
     hysteresis: 2.0
     description: "Average speed dangerously high (> 130 km/h)"
 
+  # ── Hydraulic ───────────────────────────────────────────────────────────────
+
+  - id: hydraulic_spike_rule
+    group: hydraulic
+    signal: hydraulic_spike
+    operator: gte
+    threshold: 1.0
+    severity: HIGH
+    cooldown_ms: 30000
+    hysteresis: 0.0
+    description: "Hydraulic pressure spike detected in 30-second window"
+
   # ── Transmission ─────────────────────────────────────────────────────────────
 
   - id: transmission_overheat

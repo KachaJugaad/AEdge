@@ -16,6 +16,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "uuid",
+ "wasm-bindgen",
 ]
 
 [[package]]

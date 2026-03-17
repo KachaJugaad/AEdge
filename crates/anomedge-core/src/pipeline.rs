@@ -14,6 +14,7 @@
 
 use crate::feature::FeatureEngine;
 use crate::inference::{ChainResult, InferenceChain, InferenceContext};
+use crate::ml_statistical::MlStatistical;
 use crate::rules::RuleEngine;
 use crate::trust::TrustEngine;
 use crate::types::{Decision, FeatureWindow, PolicyPack, SignalEvent};
@@ -49,6 +50,7 @@ impl PipelineResult {
 pub struct Pipeline {
     feature_engine: FeatureEngine,
     rule_engine:    RuleEngine,
+    ml_statistical: MlStatistical,
     trust_engine:   TrustEngine,
 }
 
@@ -59,6 +61,7 @@ impl Pipeline {
         Self {
             feature_engine: FeatureEngine::new(),
             rule_engine:    RuleEngine::new(policy.clone()),
+            ml_statistical: MlStatistical::new(),
             trust_engine:   TrustEngine::new(policy),
         }
     }
@@ -77,16 +80,18 @@ impl Pipeline {
 
     /// Process one `SignalEvent` through the full pipeline.
     ///
-    /// Internally creates an `InferenceChain` view over the owned `RuleEngine`
-    /// — no allocation, no Arc, Tier-1/2 stubs fall through to Tier-3.
+    /// Steps: FeatureEngine → MlStatistical.record → InferenceChain → TrustEngine.
     pub fn process(&mut self, event: SignalEvent) -> PipelineResult {
         // ── Step 1: Feature computation ───────────────────────────────────────
         let asset_id = event.asset_id.clone();
         let window   = self.feature_engine.ingest(event);
         let samples  = self.feature_engine.sample_count(&asset_id);
 
-        // ── Step 2: Inference chain ───────────────────────────────────────────
-        let chain        = InferenceChain::new(&self.rule_engine);
+        // ── Step 1b: Record features for ML Statistical history ──────────────
+        self.ml_statistical.record(&window);
+
+        // ── Step 2: Inference chain (Tier 2 + Tier 3) ────────────────────────
+        let chain        = InferenceChain::with_ml(&self.rule_engine, &self.ml_statistical);
         let ctx          = InferenceContext::with_samples(samples);
         let chain_result = chain.evaluate(&window, &ctx);
 

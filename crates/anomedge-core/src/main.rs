@@ -79,7 +79,8 @@ fn main() {
             fuel_level:         get_f64(&s, "fuel_level"),
             intake_air_temp:    get_f64(&s, "intake_air_temp"),
             battery_voltage:    get_f64(&s, "battery_voltage"),
-            brake_pedal:        get_f64(&s, "brake_pressure").map(|v| v / 100.0),
+            brake_pedal:        get_f64(&s, "brake_pedal")
+                                    .or_else(|| get_f64(&s, "brake_pressure").map(|v| v / 100.0)),
             oil_pressure:       get_f64(&s, "oil_pressure"),
             dtc_codes:          None,
             hydraulic_pressure: get_f64(&s, "hydraulic_pressure"),
@@ -107,7 +108,10 @@ fn main() {
         let result = pipeline.process(event);
 
         for d in &result.gated_decisions {
-            let sev_str = format!("{:?}", d.severity);
+            let sev_str = serde_json::to_string(&d.severity)
+                .unwrap_or_default()
+                .trim_matches('"')
+                .to_string();
             eprintln!(
                 "  [ts+{:>5}ms] ALERT  rule={:<30} severity={:<8} raw={:.2}",
                 frame.ts_offset_ms,
@@ -128,7 +132,8 @@ fn main() {
 
     eprintln!("\n--- Results ---");
     eprintln!("Fired rules:   {:?}", all_rule_ids);
-    eprintln!("Max severity:  {}", if max_severity.is_empty() { "(none)".to_string() } else { max_severity.clone() });
+    if max_severity.is_empty() { max_severity = "NORMAL".to_string(); }
+    eprintln!("Max severity:  {}", max_severity);
 
     eprintln!("\n--- Expectations ---");
     eprintln!("Expected rules: {:?}", scenario.expected_alerts);
