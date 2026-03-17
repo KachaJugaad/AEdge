@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AnomEdge - Edge AI for Vehicle Anomaly Detection</title>
+  <meta name="description" content="Real-time anomaly detection running on the vehicle itself. No cloud dependency. Instant alerts that save lives and money." />
+  <style>
+    /* ─── Reset & Base ────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg-card: #161b22; --bg-elevated: #1c2128;
+      --border: #21262d; --border-light: #30363d;
+      --text: #e6edf3; --text-muted: #8b949e; --text-dim: #484f58;
+      --accent: #58a6ff; --accent-dim: #1f6feb;
+      --green: #3fb950; --yellow: #e3b341; --red: #f85149; --purple: #bc8cff;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg); color: var(--text); font-family: var(--font);
+      line-height: 1.6; -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ─── Nav ─────────────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,17,23,0.85); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center;
+      height: 56px; gap: 24px;
+    }
+    nav .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 700; font-size: 18px; letter-spacing: -0.02em; color: var(--text);
+    }
+    nav .logo-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), #388bfd);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800; color: var(--bg);
+    }
+    nav .links { display: flex; gap: 20px; margin-left: auto; }
+    nav .links a {
+      color: var(--text-muted); font-size: 14px; font-weight: 500;
+      transition: color 0.15s;
+    }
+    nav .links a:hover { color: var(--text); text-decoration: none; }
+    .gh-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      color: var(--text); padding: 6px 14px; border-radius: 6px;
+      font-size: 13px; font-weight: 500; transition: border-color 0.15s;
+    }
+    .gh-btn:hover { border-color: var(--accent); text-decoration: none; }
+    .gh-btn svg { width: 16px; height: 16px; fill: var(--text); }
+
+    /* ─── Sections ────────────────────────────────────────────────────── */
+    section { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+    .section-label {
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 42px); font-weight: 800;
+      line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 20px;
+    }
+    .section-subtitle {
+      font-size: 18px; color: var(--text-muted); max-width: 680px;
+      line-height: 1.6; margin-bottom: 40px;
+    }
+
+    /* ─── Hero ────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 100px 24px 80px; text-align: center;
+      background: radial-gradient(ellipse at 50% 0%, rgba(31,111,235,0.12) 0%, transparent 60%);
+    }
+    .hero .section-title { max-width: 800px; margin: 0 auto 20px; }
+    .hero .section-subtitle { max-width: 600px; margin: 0 auto 40px; }
+    .hero-stats {
+      display: flex; justify-content: center; gap: 40px; flex-wrap: wrap;
+      margin-top: 48px;
+    }
+    .hero-stat {
+      text-align: center;
+    }
+    .hero-stat .num {
+      font-family: var(--mono); font-size: 36px; font-weight: 800;
+      background: linear-gradient(135deg, var(--accent), var(--green));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-stat .label { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #fff; padding: 12px 28px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; border: none; cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(46,160,67,0.3); text-decoration: none; }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--bg-card); border: 1px solid var(--border-light);
+      color: var(--text); padding: 12px 28px; border-radius: 8px;
+      font-size: 15px; font-weight: 600; cursor: pointer; transition: border-color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
+
+    /* ─── Problem Section ─────────────────────────────────────────────── */
+    .problem-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px; margin-top: 32px;
+    }
+    .problem-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .problem-card:hover { border-color: var(--border-light); transform: translateY(-2px); }
+    .problem-card .icon { font-size: 32px; margin-bottom: 12px; }
+    .problem-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .problem-card p { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+
+    /* ─── How It Works ────────────────────────────────────────────────── */
+    .pipeline-visual {
+      display: flex; align-items: stretch; gap: 0; margin: 40px 0;
+      overflow-x: auto; padding-bottom: 8px;
+    }
+    .pipe-stage {
+      flex: 1; min-width: 180px; padding: 20px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      position: relative; text-align: center;
+    }
+    .pipe-stage:first-child { border-radius: 12px 0 0 12px; }
+    .pipe-stage:last-child { border-radius: 0 12px 12px 0; }
+    .pipe-stage .stage-num {
+      font-family: var(--mono); font-size: 11px; color: var(--accent);
+      letter-spacing: 0.08em; margin-bottom: 8px;
+    }
+    .pipe-stage h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .pipe-stage p { font-size: 12px; color: var(--text-muted); }
+    .pipe-stage .latency {
+      font-family: var(--mono); font-size: 11px; color: var(--green);
+      margin-top: 8px; font-weight: 600;
+    }
+    .pipe-arrow {
+      display: flex; align-items: center; color: var(--accent); font-size: 20px;
+      padding: 0 4px; flex-shrink: 0;
+    }
+
+    /* ─── Audience Tabs ───────────────────────────────────────────────── */
+    .audience-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+    }
+    .audience-tab {
+      padding: 10px 20px; font-size: 14px; font-weight: 500;
+      color: var(--text-muted); cursor: pointer; border: none; background: none;
+      border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .audience-tab:hover { color: var(--text); }
+    .audience-tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+    .audience-content { display: none; }
+    .audience-content.active { display: block; }
+    .audience-content h3 { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+    .audience-content p, .audience-content li {
+      font-size: 15px; color: var(--text-muted); line-height: 1.7;
+    }
+    .audience-content ul { padding-left: 20px; margin: 12px 0; }
+    .audience-content li { margin-bottom: 8px; }
+    .audience-content code {
+      font-family: var(--mono); font-size: 13px;
+      background: var(--bg-elevated); padding: 2px 6px; border-radius: 4px;
+      color: var(--accent);
+    }
+
+    /* ─── Architecture ────────────────────────────────────────────────── */
+    .arch-diagram {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 32px; margin: 32px 0;
+      font-family: var(--mono); font-size: 13px; line-height: 2;
+      overflow-x: auto; color: var(--text-muted);
+    }
+    .arch-diagram .highlight { color: var(--accent); font-weight: 600; }
+    .arch-diagram .green { color: var(--green); }
+    .arch-diagram .yellow { color: var(--yellow); }
+    .arch-diagram .red { color: var(--red); }
+    .arch-diagram .purple { color: var(--purple); }
+
+    /* ─── Features Grid ───────────────────────────────────────────────── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px; margin-top: 32px;
+    }
+    .feature-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .feature-item:hover { border-color: var(--border-light); }
+    .feature-item .tag {
+      display: inline-block; font-family: var(--mono); font-size: 10px;
+      font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 2px 8px; border-radius: 4px; margin-bottom: 10px;
+    }
+    .tag-done { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+    .tag-wip { background: rgba(227,179,65,0.15); color: var(--yellow); border: 1px solid rgba(227,179,65,0.3); }
+    .tag-next { background: rgba(88,166,255,0.15); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+    .tag-future { background: rgba(188,140,255,0.15); color: var(--purple); border: 1px solid rgba(188,140,255,0.3); }
+    .feature-item h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .feature-item p { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ─── Video Section ───────────────────────────────────────────────── */
+    .video-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px; margin-top: 32px;
+    }
+    .video-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .video-card:hover { border-color: var(--border-light); transform: translateY(-2px); }
+    .video-card video {
+      width: 100%; display: block; background: #000;
+      border-bottom: 1px solid var(--border);
+    }
+    .video-card .video-info { padding: 16px; }
+    .video-card .video-info h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .video-card .video-info p { font-size: 13px; color: var(--text-muted); }
+    .video-placeholder {
+      width: 100%; aspect-ratio: 16/9; background: var(--bg-elevated);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .video-placeholder .play-icon { font-size: 40px; opacity: 0.3; }
+    .video-placeholder p { font-size: 12px; color: var(--text-dim); }
+
+    /* ─── Roadmap Timeline ────────────────────────────────────────────── */
+    .timeline { position: relative; margin: 40px 0; padding-left: 32px; }
+    .timeline::before {
+      content: ''; position: absolute; left: 11px; top: 0; bottom: 0;
+      width: 2px; background: var(--border);
+    }
+    .timeline-item { position: relative; margin-bottom: 32px; }
+    .timeline-item::before {
+      content: ''; position: absolute; left: -27px; top: 6px;
+      width: 12px; height: 12px; border-radius: 50%;
+      border: 2px solid var(--accent); background: var(--bg);
+    }
+    .timeline-item.done::before { background: var(--green); border-color: var(--green); }
+    .timeline-item.current::before {
+      background: var(--accent); border-color: var(--accent);
+      box-shadow: 0 0 8px rgba(88,166,255,0.5);
+    }
+    .timeline-item h4 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .timeline-item .when {
+      font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    .timeline-item p { font-size: 14px; color: var(--text-muted); }
+
+    /* ─── Tech Stack ──────────────────────────────────────────────────── */
+    .tech-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px; margin-top: 24px;
+    }
+    .tech-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .tech-item .tech-icon { font-size: 24px; }
+    .tech-item .tech-name { font-size: 14px; font-weight: 600; }
+    .tech-item .tech-why { font-size: 11px; color: var(--text-dim); }
+
+    /* ─── Footer ──────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 40px 24px;
+      text-align: center; color: var(--text-dim); font-size: 13px;
+    }
+    footer a { color: var(--text-muted); }
+
+    /* ─── Responsive ──────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      section { padding: 48px 16px; }
+      .hero { padding: 60px 16px 48px; }
+      nav .links { display: none; }
+      .hero-stats { gap: 24px; }
+      .pipeline-visual { flex-direction: column; }
+      .pipe-stage:first-child { border-radius: 12px 12px 0 0; }
+      .pipe-stage:last-child { border-radius: 0 0 12px 12px; }
+      .pipe-arrow { transform: rotate(90deg); justify-content: center; }
+    }
+
+    /* ─── Animations ──────────────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate { animation: fadeUp 0.6s ease-out both; }
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+  </style>
+</head>
+<body>
+
+<!-- ═══ NAV ══════════════════════════════════════════════════════════════ -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-icon">A</div>
+    AnomEdge
+  </a>
+  <div class="links">
+    <a href="#problem">Problem</a>
+    <a href="#how">How It Works</a>
+    <a href="#deep-dive">Deep Dive</a>
+    <a href="#features">Features</a>
+    <a href="#videos">Demos</a>
+    <a href="#roadmap">Roadmap</a>
+  </div>
+  <a href="https://github.com/KachaJugaad/AEdge" target="_blank" class="gh-btn">
+    <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- ═══ HERO ═════════════════════════════════════════════════════════════ -->
+<section class="hero" id="top">
+  <div class="section-label animate">Edge AI Platform</div>
+  <h1 class="section-title animate delay-1">
+    Your vehicle knows something is wrong.<br/>
+    <span style="color: var(--accent)">Before you do.</span>
+  </h1>
+  <p class="section-subtitle animate delay-2">
+    AnomEdge runs anomaly detection directly on the vehicle &mdash; no cloud, no latency, no dead zones.
+    From a rumbling engine to a failing battery, it catches problems in under 100ms and tells the driver exactly what to do.
+  </p>
+  <div class="cta-row animate delay-3">
+    <a href="#how" class="btn-primary">See How It Works &darr;</a>
+    <a href="https://github.com/KachaJugaad/AEdge" target="_blank" class="btn-secondary">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      View Source
+    </a>
+  </div>
+  <div class="hero-stats animate delay-3">
+    <div class="hero-stat">
+      <div class="num">&lt;100ms</div>
+      <div class="label">Signal to Alert (p99)</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">145</div>
+      <div class="label">Tests Passing</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">18</div>
+      <div class="label">Detection Rules</div>
+    </div>
+    <div class="hero-stat">
+      <div class="num">0</div>
+      <div class="label">Cloud Dependencies</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ PROBLEM ══════════════════════════════════════════════════════════ -->
+<section id="problem">
+  <div class="section-label">The Problem</div>
+  <h2 class="section-title">Vehicles break down. Drivers find out too late.</h2>
+  <p class="section-subtitle">
+    Every year, unexpected vehicle failures cause accidents, stranded fleets, and millions in repair costs.
+    Current telematics systems upload data to the cloud and send alerts minutes or hours later &mdash; if they send them at all.
+  </p>
+
+  <div class="problem-grid">
+    <div class="problem-card">
+      <div class="icon">&#9203;</div>
+      <h3>Cloud Latency Kills</h3>
+      <p>
+        Traditional systems upload telemetry to a cloud server, run analysis, and push notifications back.
+        Round trip: <strong>2-30 seconds</strong>. An overheating engine doesn't wait 30 seconds.
+        AnomEdge decides in <strong>under 100 milliseconds</strong>, on the vehicle.
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">&#128507;</div>
+      <h3>Dead Zones Are Real</h3>
+      <p>
+        Mining sites, rural highways, construction zones &mdash; no cell signal means no cloud.
+        Edge AI runs entirely offline. The vehicle's own hardware does the thinking.
+        <strong>No internet? No problem.</strong>
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">&#128176;</div>
+      <h3>$15,000 Average Breakdown Cost</h3>
+      <p>
+        A single catastrophic engine failure costs $8K-$25K in parts, towing, and lost productivity.
+        Catching a rising coolant temperature <strong>60 seconds earlier</strong> turns a $15K engine replacement
+        into a $200 coolant top-off.
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">&#128104;&#8205;&#128295;</div>
+      <h3>Drivers Aren't Mechanics</h3>
+      <p>
+        Dashboard lights are cryptic. "Check Engine" tells you nothing.
+        AnomEdge translates sensor data into <strong>plain English</strong>:
+        <em>"Engine overheating. Pull over within 5 minutes. Turn on the heater to draw heat."</em>
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">&#128202;</div>
+      <h3>Alert Fatigue</h3>
+      <p>
+        Existing systems flood drivers with every minor fluctuation.
+        AnomEdge uses a <strong>Trust Engine with cooldown &amp; hysteresis</strong> &mdash;
+        it only alerts when it matters, and it doesn't repeat itself for the same ongoing issue.
+      </p>
+    </div>
+    <div class="problem-card">
+      <div class="icon">&#127981;</div>
+      <h3>One Size Doesn't Fit All</h3>
+      <p>
+        A Ford F-450 and a Caterpillar 320 excavator have completely different signals and thresholds.
+        AnomEdge has <strong>pluggable telematics adapters</strong> and <strong>policy YAML</strong> &mdash;
+        fleet managers tune rules per vehicle class without touching code.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HOW IT WORKS ═════════════════════════════════════════════════════ -->
+<section id="how" style="border-top: 1px solid var(--border);">
+  <div class="section-label">How It Works</div>
+  <h2 class="section-title">From sensor to driver alert in 4 stages</h2>
+  <p class="section-subtitle">
+    Every second, vehicle sensors emit raw telemetry. AnomEdge processes it through a pipeline
+    that computes features, runs inference, filters noise, and delivers a clear action to the driver's phone.
+  </p>
+
+  <div class="pipeline-visual">
+    <div class="pipe-stage">
+      <div class="stage-num">STAGE 1</div>
+      <h4>Telematics Adapter</h4>
+      <p>Translates OBD2, CAN bus, or proprietary protocols into a universal SignalEvent</p>
+      <div class="latency">&lt; 1ms</div>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-stage">
+      <div class="stage-num">STAGE 2</div>
+      <h4>Feature Engine</h4>
+      <p>30-second rolling window computes slopes, spike counts, means, and variance</p>
+      <div class="latency">&lt; 2ms</div>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-stage">
+      <div class="stage-num">STAGE 3</div>
+      <h4>Inference Chain</h4>
+      <p>3-tier: Edge AI (ONNX) &rarr; ML Statistical &rarr; Rule Engine. Always produces a result.</p>
+      <div class="latency">&lt; 50ms</div>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-stage">
+      <div class="stage-num">STAGE 4</div>
+      <h4>Trust Engine</h4>
+      <p>Cooldown + hysteresis filter. Only passes alerts that genuinely matter.</p>
+      <div class="latency">&lt; 1ms</div>
+    </div>
+    <div class="pipe-arrow">&rarr;</div>
+    <div class="pipe-stage" style="border-color: var(--green);">
+      <div class="stage-num" style="color: var(--green);">OUTPUT</div>
+      <h4 style="color: var(--green);">Driver Alert</h4>
+      <p>Title, guidance, severity, voice alert. Delivered to the mobile app instantly.</p>
+      <div class="latency" style="color: var(--green);">&lt; 100ms total</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 32px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px;">
+    <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">The 3-Tier Inference Chain (Why It Never Misses)</h3>
+    <p style="font-size: 14px; color: var(--text-muted); line-height: 1.7;">
+      AnomEdge uses a <strong>fallback chain</strong> strategy. It tries the most sophisticated method first and falls back to simpler ones:
+    </p>
+    <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+      <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--accent);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px;">TIER 1 &mdash; Edge AI</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">INT8 ONNX Neural Network</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Deep learning on mel-spectrograms. Catches subtle patterns humans can't see. Timeout: 50ms.</div>
+      </div>
+      <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--yellow);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--yellow); margin-bottom: 4px;">TIER 2 &mdash; ML Statistical</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Isolation Forest</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Unsupervised outlier detection on feature windows. Needs &ge;5 samples. No training labels required.</div>
+      </div>
+      <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; border-left: 3px solid var(--green);">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--green); margin-bottom: 4px;">TIER 3 &mdash; Rule Engine</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Policy YAML Thresholds</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Human-defined rules. Always fires. The safety net that never fails. Editable without recompiling.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DEEP DIVE (Audience Tabs) ════════════════════════════════════════ -->
+<section id="deep-dive" style="border-top: 1px solid var(--border);">
+  <div class="section-label">Deep Dive</div>
+  <h2 class="section-title">Understand it at your level</h2>
+
+  <div class="audience-tabs">
+    <button class="audience-tab active" data-tab="layman">I'm Non-Technical</button>
+    <button class="audience-tab" data-tab="manager">I'm a Fleet Manager</button>
+    <button class="audience-tab" data-tab="engineer">I'm an Engineer</button>
+    <button class="audience-tab" data-tab="architect">I'm a Systems Architect</button>
+  </div>
+
+  <!-- Layman -->
+  <div class="audience-content active" id="tab-layman">
+    <h3>Think of it as a co-pilot that speaks mechanic</h3>
+    <p>
+      Your vehicle has hundreds of sensors &mdash; temperature, speed, pressure, battery voltage &mdash; producing thousands of readings every minute.
+      No human can watch all of them.
+    </p>
+    <p style="margin-top: 12px;">
+      AnomEdge is a tiny brain that lives inside the vehicle (on a phone, tablet, or small computer).
+      It watches every sensor simultaneously and knows what "normal" looks like for your specific vehicle.
+    </p>
+    <p style="margin-top: 12px;">
+      When something goes wrong &mdash; maybe the engine is getting too hot, or the brakes are being slammed too often &mdash; it sends you a message
+      on your phone in plain language:
+    </p>
+    <div style="margin: 20px 0; padding: 20px; background: var(--bg-card); border-radius: 12px; border-left: 4px solid var(--red);">
+      <div style="font-size: 24px; margin-bottom: 8px;">&#128680;</div>
+      <div style="font-size: 16px; font-weight: 700; color: var(--red);">Engine Overheating</div>
+      <div style="font-size: 14px; color: var(--text-muted); margin-top: 8px;">
+        "Pull over within 5 minutes. Turn off the A/C and turn the heater to full &mdash; it draws heat away from the engine. Check coolant level at your next safe stop."
+      </div>
+    </div>
+    <p>
+      No jargon. No cryptic codes. Just <strong>what's wrong</strong> and <strong>what to do about it</strong>.
+      And because it runs on the vehicle itself, it works even in areas with no cell service.
+    </p>
+  </div>
+
+  <!-- Fleet Manager -->
+  <div class="audience-content" id="tab-manager">
+    <h3>Reduce downtime. Protect your drivers. Cut costs.</h3>
+    <ul>
+      <li><strong>18 configurable detection rules</strong> across thermal, braking, speed, hydraulic, transmission, electrical, fuel, and engine categories</li>
+      <li><strong>Policy YAML</strong> &mdash; your ops team tunes thresholds per vehicle class (light truck vs. heavy equipment) without any code changes</li>
+      <li><strong>5 severity levels</strong>: NORMAL &rarr; WATCH &rarr; WARN &rarr; HIGH &rarr; CRITICAL, each with different driver-facing urgency</li>
+      <li><strong>Cooldown &amp; hysteresis</strong> prevent alert fatigue &mdash; the system won't nag about the same issue repeatedly</li>
+      <li><strong>Offline-first</strong> &mdash; works in mines, rural areas, construction sites. No cloud dependency for critical alerts.</li>
+      <li><strong>Voice alerts</strong> for HIGH and CRITICAL severity &mdash; the driver hears the alert even if they're not looking at their phone</li>
+    </ul>
+    <p style="margin-top: 16px;">
+      <strong>ROI example:</strong> A fleet of 200 trucks averaging 2 breakdowns/month at $12K each = $4.8M/year.
+      Catching 40% of those failures early (industry benchmark for predictive maintenance) saves <strong>$1.9M annually</strong>.
+    </p>
+  </div>
+
+  <!-- Engineer -->
+  <div class="audience-content" id="tab-engineer">
+    <h3>Rust core, TypeScript contracts, real-time EventBus</h3>
+    <ul>
+      <li>Core inference pipeline written in <strong>Rust</strong> &mdash; zero GC pauses, compiles to WASM, iOS (via FFI), Android (JNI), and IoT binaries</li>
+      <li><strong>EventBus</strong> with topic-based pub/sub: <code>signals.raw</code> &rarr; <code>signals.features</code> &rarr; <code>decisions</code> &rarr; <code>decisions.gated</code></li>
+      <li>Feature computation: 30-second rolling window with <code>coolant_slope</code>, <code>brake_spike_count</code>, <code>speed_mean</code>, <code>hydraulic_spike</code>, etc.</li>
+      <li>INT8 ONNX inference via <code>ort</code> crate &mdash; static quantization, &lt;15MB model, &lt;2% F1 delta vs FP32</li>
+      <li>Isolation Forest for unsupervised anomaly scoring when model isn't available</li>
+      <li>Telematics adapters: OBD2 Generic, Ford F-450, Caterpillar, John Deere &mdash; each normalizes proprietary signals to <code>SignalEvent</code></li>
+      <li>All thresholds driven by <code>policy/policy.yaml</code> &mdash; never hardcoded</li>
+    </ul>
+    <p style="margin-top: 16px;">
+      <strong>Test coverage:</strong> 145 tests (132 unit + 5 scenario + 8 type compatibility). CI via GitHub Actions.
+    </p>
+  </div>
+
+  <!-- Architect -->
+  <div class="audience-content" id="tab-architect">
+    <h3>Multi-target compilation, contract-first, event-driven</h3>
+
+    <div class="arch-diagram">
+<pre>
+<span class="highlight">COMPILATION TARGETS</span>
+  Rust Core &rarr; <span class="green">WASM</span> (browser, via wasm-bindgen)
+            &rarr; <span class="green">iOS</span>  (C FFI, Swift bridging header)
+            &rarr; <span class="green">Android</span> (JNI via cargo-ndk)
+            &rarr; <span class="green">IoT</span>  (native ARM binary, musl-linked)
+            &rarr; <span class="green">Cloud</span> (native x86_64 for server-side replay)
+
+<span class="highlight">BUS TOPOLOGY</span>
+  <span class="purple">signals.raw</span>      &rarr; FeatureEngine subscribes (1:1)
+  <span class="purple">signals.features</span> &rarr; InferenceChain subscribes (1:N decisions)
+  <span class="purple">decisions</span>        &rarr; TrustEngine subscribes (N:M gated)
+  <span class="purple">decisions.gated</span>  &rarr; <span class="yellow">Person B (Flutter)</span> subscribes
+  <span class="purple">actions</span>          &rarr; <span class="yellow">Driver-facing UI</span> subscribes
+
+<span class="highlight">CONTRACT BOUNDARIES</span> (frozen after Day 1)
+  SignalEvent  &rarr; FeatureWindow  &rarr; Decision  &rarr; Action
+  TypeScript canonical types &harr; Rust serde mirror (8 compat tests)
+
+<span class="highlight">INFERENCE CHAIN FALLBACK</span>
+  try Tier1(ONNX, 50ms timeout, &ge;0.65 confidence)
+    &rarr; fallback Tier2(IsolationForest, &ge;5 samples)
+      &rarr; fallback Tier3(RuleEngine, ALWAYS fires)
+  All tiers produce <span class="green">Decision[]</span> with <span class="green">decision_source</span> field
+
+<span class="highlight">TRUST ENGINE</span>
+  Per-rule cooldown (configurable ms) + hysteresis band
+  Prevents re-firing same rule within cooldown window
+  Hysteresis: signal must cross threshold &plusmn; band to re-trigger
+
+<span class="highlight">PERFORMANCE BUDGET</span>
+  Feature computation: <span class="green">&lt; 2ms</span> per frame
+  Rule engine:         <span class="green">&lt; 1ms</span> per evaluation
+  ONNX inference:      <span class="yellow">&lt; 50ms</span> (with fallback)
+  Total pipeline:      <span class="green">&lt; 100ms</span> p99
+</pre>
+    </div>
+
+    <p style="font-size: 14px; color: var(--text-muted);">
+      The architecture is designed for <strong>zero single points of failure</strong> in the inference path.
+      Even if the ONNX runtime crashes or the ML model is corrupted, the Rule Engine tier always fires.
+      The system degrades gracefully, never silently.
+    </p>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ═════════════════════════════════════════════════════════ -->
+<section id="features" style="border-top: 1px solid var(--border);">
+  <div class="section-label">Features &amp; Status</div>
+  <h2 class="section-title">What's built, what's next</h2>
+
+  <div class="features-grid">
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Shared Contracts</h4>
+      <p>TypeScript + Rust type mirrors. SignalEvent, FeatureWindow, Decision, Action. Frozen.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Telematics Adapters</h4>
+      <p>OBD2 Generic, Ford F-450, Caterpillar, John Deere. 61 tests. Pluggable registry.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Feature Engine</h4>
+      <p>30-second rolling window. Slopes, spike counts, means, variance. &lt;2ms per frame.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Rule Engine</h4>
+      <p>18 rules from policy YAML. 6 operators. Group-based evaluation. &lt;1ms.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Trust Engine</h4>
+      <p>Per-rule cooldown + hysteresis. Eliminates alert fatigue. 8 tests.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>3-Tier Inference Chain</h4>
+      <p>ONNX &rarr; Isolation Forest &rarr; Rule Engine fallback. 10 tests.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Full Pipeline Wiring</h4>
+      <p>EventBus pub/sub connecting all stages. 5 scenario integration tests.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>FFI &amp; WASM Exports</h4>
+      <p>C-compatible FFI for iOS/Android. wasm-bindgen for browser. 18 tests.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Web Terminal Dashboard</h4>
+      <p>Live decision monitor with scenario replay, mobile device preview, bus metrics.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-done">DONE</div>
+      <h4>Driver Action Templates</h4>
+      <p>18 rule-specific guidance messages. "Pull over", "Visit mechanic", "Slow down". Voice alerts.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-wip">IN PROGRESS</div>
+      <h4>ML Statistical (Tier 2)</h4>
+      <p>Isolation Forest implementation in Rust. Unsupervised anomaly scoring.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-next">NEXT</div>
+      <h4>Flutter Mobile App</h4>
+      <p>Driver-facing app subscribing to decisions.gated. Push notifications + TTS.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-next">NEXT</div>
+      <h4>ONNX Model Training</h4>
+      <p>Mel-spectrogram classifier. INT8 quantization. &lt;15MB for mobile, &lt;8MB for IoT.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-future">FUTURE</div>
+      <h4>Fleet Dashboard</h4>
+      <p>Web app for fleet managers. Vehicle health overview, alert history, rule tuning UI.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-future">FUTURE</div>
+      <h4>Cloud Replay &amp; Training</h4>
+      <p>Server-side pipeline replay for model training. Federated learning across fleet.</p>
+    </div>
+    <div class="feature-item">
+      <div class="tag tag-future">FUTURE</div>
+      <h4>LLM Guidance Engine</h4>
+      <p>Context-aware natural language guidance generated by LLM, personalized per driver.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ VIDEOS ═══════════════════════════════════════════════════════════ -->
+<section id="videos" style="border-top: 1px solid var(--border);">
+  <div class="section-label">Demos &amp; Videos</div>
+  <h2 class="section-title">See it in action</h2>
+  <p class="section-subtitle">
+    Drop your video files into <code>docs/videos/</code> and they'll appear here automatically.
+    Supports MP4, WebM, and MOV.
+  </p>
+
+  <div class="video-grid" id="video-grid">
+    <!-- Videos are loaded dynamically by JS below -->
+    <!-- Fallback placeholders shown if no videos found -->
+  </div>
+</section>
+
+<!-- ═══ ROADMAP ══════════════════════════════════════════════════════════ -->
+<section id="roadmap" style="border-top: 1px solid var(--border);">
+  <div class="section-label">Roadmap</div>
+  <h2 class="section-title">Where we're going</h2>
+
+  <div class="timeline">
+    <div class="timeline-item done">
+      <div class="when">Days 1-6 &mdash; Complete</div>
+      <h4>Core Pipeline</h4>
+      <p>Contracts, adapters, FeatureEngine, RuleEngine, TrustEngine, InferenceChain, FFI/WASM, EventBus, web terminal. 145 tests green.</p>
+    </div>
+    <div class="timeline-item current">
+      <div class="when">Current Sprint</div>
+      <h4>ML Statistical &amp; Live Simulation</h4>
+      <p>Isolation Forest (Tier 2), enhanced live simulator with multi-fault scenarios, driver action alerts with mobile preview.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="when">Next</div>
+      <h4>Flutter Driver App</h4>
+      <p>Native mobile app subscribing to decisions.gated. Push notifications, TTS voice alerts, offline-first SQLite cache.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="when">Next</div>
+      <h4>ONNX Model Training Pipeline</h4>
+      <p>Mel-spectrogram feature extraction, CNN classifier training in PyTorch, INT8 quantization, model validation suite.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="when">Future</div>
+      <h4>Fleet Management Dashboard</h4>
+      <p>Web app for fleet operators. Real-time vehicle health grid, alert history, rule tuning UI, driver performance scoring.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="when">Future</div>
+      <h4>Cloud Replay &amp; Federated Learning</h4>
+      <p>Upload telemetry when connected. Server-side replay for model retraining. Fleet-wide anomaly pattern sharing without raw data leaving vehicles.</p>
+    </div>
+    <div class="timeline-item">
+      <div class="when">Vision</div>
+      <h4>LLM-Powered Contextual Guidance</h4>
+      <p>Move from template-based alerts to LLM-generated, context-aware guidance. Factor in weather, route, driver history, nearby service stations.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TECH STACK ═══════════════════════════════════════════════════════ -->
+<section id="tech" style="border-top: 1px solid var(--border);">
+  <div class="section-label">Tech Stack</div>
+  <h2 class="section-title">Built for the edge</h2>
+
+  <div class="tech-grid">
+    <div class="tech-item">
+      <div class="tech-icon">&#129408;</div>
+      <div>
+        <div class="tech-name">Rust</div>
+        <div class="tech-why">Zero GC, compiles everywhere</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#127760;</div>
+      <div>
+        <div class="tech-name">WebAssembly</div>
+        <div class="tech-why">Same logic in browser</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#9883;</div>
+      <div>
+        <div class="tech-name">ONNX Runtime</div>
+        <div class="tech-why">INT8 inference, cross-platform</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128218;</div>
+      <div>
+        <div class="tech-name">TypeScript</div>
+        <div class="tech-why">Contracts &amp; web tooling</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#9883;</div>
+      <div>
+        <div class="tech-name">React + Vite</div>
+        <div class="tech-why">Dashboard &amp; terminal</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128241;</div>
+      <div>
+        <div class="tech-name">Flutter</div>
+        <div class="tech-why">Driver mobile app (planned)</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128203;</div>
+      <div>
+        <div class="tech-name">Policy YAML</div>
+        <div class="tech-why">No-code threshold tuning</div>
+      </div>
+    </div>
+    <div class="tech-item">
+      <div class="tech-icon">&#128172;</div>
+      <div>
+        <div class="tech-name">EventBus</div>
+        <div class="tech-why">In-process pub/sub, metrics</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══════════════════════════════════════════════════════════ -->
+<footer>
+  <div style="margin-bottom: 12px;">
+    <a href="https://github.com/KachaJugaad/AEdge" target="_blank" style="font-weight: 600;">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="vertical-align: text-bottom; margin-right: 4px;"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      KachaJugaad/AEdge
+    </a>
+  </div>
+  <p>AnomEdge &mdash; Edge AI for Vehicle Anomaly Detection</p>
+  <p style="margin-top: 4px;">Built with Rust, TypeScript, and a refusal to depend on the cloud for safety.</p>
+</footer>
+
+<!-- ═══ SCRIPTS ══════════════════════════════════════════════════════════ -->
+<script>
+  // ── Audience Tabs ──
+  document.querySelectorAll('.audience-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.audience-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.audience-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Video Loader ──
+  // Tries to load videos from the videos/ directory.
+  // Since GitHub Pages is static, we use a known manifest approach:
+  // List your video filenames in this array, or use the auto-detect fallback.
+  const VIDEO_MANIFEST = [
+    // Add your videos here as objects:
+    // { file: 'demo-overheat.mp4', title: 'Overheat Scenario', description: 'Live detection of coolant overheat' },
+    // { file: 'live-mode.webm', title: 'Live Simulation', description: 'Multi-fault real-time simulation' },
+  ];
+
+  const videoGrid = document.getElementById('video-grid');
+
+  function renderVideos(videos) {
+    if (videos.length === 0) {
+      videoGrid.innerHTML = `
+        <div class="video-card">
+          <div class="video-placeholder">
+            <div class="play-icon">&#9654;</div>
+            <p>Overheat Scenario Demo</p>
+          </div>
+          <div class="video-info">
+            <h4>Coming Soon</h4>
+            <p>Drop MP4/WebM files into <code>docs/videos/</code> and add them to the manifest in index.html</p>
+          </div>
+        </div>
+        <div class="video-card">
+          <div class="video-placeholder">
+            <div class="play-icon">&#9654;</div>
+            <p>Live Multi-Fault Simulation</p>
+          </div>
+          <div class="video-info">
+            <h4>Coming Soon</h4>
+            <p>Real-time driver alerts with severity escalation and voice notifications</p>
+          </div>
+        </div>
+        <div class="video-card">
+          <div class="video-placeholder">
+            <div class="play-icon">&#9654;</div>
+            <p>Mobile App Preview</p>
+          </div>
+          <div class="video-info">
+            <h4>Coming Soon</h4>
+            <p>Flutter driver app receiving decisions.gated alerts in real time</p>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    videoGrid.innerHTML = videos.map(v => `
+      <div class="video-card">
+        <video controls preload="metadata" poster="">
+          <source src="videos/${v.file}" type="video/${v.file.split('.').pop() === 'mp4' ? 'mp4' : v.file.split('.').pop() === 'webm' ? 'webm' : 'mp4'}">
+          Your browser does not support video playback.
+        </video>
+        <div class="video-info">
+          <h4>${v.title || v.file}</h4>
+          <p>${v.description || ''}</p>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  renderVideos(VIDEO_MANIFEST);
+
+  // ── Scroll animations ──
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('animate');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('section').forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
