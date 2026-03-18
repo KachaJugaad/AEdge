@@ -94,7 +94,7 @@ export function registerSyncRoutes(app: FastifyInstance, cloudDb: CloudDB): void
     async (_req: FastifyRequest, reply: FastifyReply) => {
       try {
         // Verify DB is accessible with a lightweight count query
-        stmts.countCheck.get();
+        (stmts.countCheck.get as Function)();
 
         return reply.status(200).send({
           status: 'ok',
