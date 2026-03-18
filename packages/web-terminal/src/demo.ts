@@ -201,7 +201,8 @@ async function runScenario(scenarioName: string, policyFile: string): Promise<bo
       passed = false;
     }
   }
-  if (scenario.expected_max_severity && maxSeverity !== scenario.expected_max_severity) {
+  const effectiveSeverity = maxSeverity || 'NORMAL';
+  if (scenario.expected_max_severity && effectiveSeverity !== scenario.expected_max_severity) {
     console.log(
       `${C.red}FAIL: expected max severity '${scenario.expected_max_severity}', ` +
       `got '${maxSeverity}'${C.reset}`,

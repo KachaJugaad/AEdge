@@ -2,7 +2,7 @@
   "name": "@anomedge/web-terminal",
   "version": "1.0.0",
   "scripts": {
-    "build": "tsc",
+    "build": "vite build",
     "start": "ts-node src/cli.ts",
     "dev": "vite",
     "demo": "ts-node -r tsconfig-paths/register src/demo.ts"
