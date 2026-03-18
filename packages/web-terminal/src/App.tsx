@@ -1,7 +1,10 @@
 // packages/web-terminal/src/App.tsx
 // AnomEdge — Decision Monitor
 // Dark-themed real-time dashboard. No external CSS framework.
-// Pipeline runs entirely in-browser: EventBus is in-process, no WebSocket needed.
+// Two simulation modes:
+//   1. In-browser — runs the full pipeline (EventBus + createPipeline) locally.
+//   2. WS Live — connects to ws://localhost:4200 (server.ts + ws-bridge.ts) and
+//      displays live decisions.gated events pushed from the Node pipeline.
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Decision, EventEnvelope, PolicyPack, SignalEvent } from '@anomedge/contracts';
@@ -9,6 +12,25 @@ import { EventBus } from '@anomedge/bus';
 // @ts-ignore — @anomedge/core has no declaration file (build is --noEmit)
 import { createPipeline } from '@anomedge/core';
 import type { BusMetrics } from '@anomedge/bus';
+
+// ─── Replay types ─────────────────────────────────────────────────────────────
+
+type ReplayMode = 'instant' | 'timed';
+type ReplayState = 'idle' | 'running' | 'paused' | 'done';
+type ReplaySpeed = 1 | 2 | 5 | 10 | 100;
+
+interface ReplayProgress {
+  frame: number;
+  total: number;
+  elapsedMs: number;
+  scenarioDurationMs: number;
+}
+
+// Scheduled frame descriptor used for pause/resume
+interface ScheduledFrame {
+  frame: ScenarioFrame;
+  delayMs: number; // original delay from start
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +49,8 @@ interface ScenarioFile {
 
 type ActiveTab = 'feed' | 'metrics' | 'pipeline' | 'mobile';
 type SimMode = 'scenario' | 'live';
+
+const REPLAY_SPEEDS: ReplaySpeed[] = [1, 2, 5, 10, 100];
 
 // ─── Action Templates — what the mobile app tells the driver ─────────────────
 
@@ -655,12 +679,38 @@ export default function App() {
   const [simMode, setSimMode] = useState<SimMode>('scenario');
   const [mobileActions, setMobileActions] = useState<MobileAction[]>([]);
 
+  // ─── WS Live mode — connects to ws://localhost:4200 (server.ts bridge) ───────
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
+  const [wsConnecting, setWsConnecting] = useState<boolean>(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Replay mode state ──────────────────────────────────────────────────────
+  const [replayMode, setReplayMode] = useState<ReplayMode>('timed');
+  const [replaySpeed, setReplaySpeed] = useState<ReplaySpeed>(10);
+  const [replayState, setReplayState] = useState<ReplayState>('idle');
+  const [replayProgress, setReplayProgress] = useState<ReplayProgress>({ frame: 0, total: 0, elapsedMs: 0, scenarioDurationMs: 0 });
+  const [showSummary, setShowSummary] = useState(false);
+
   const busRef = useRef<EventBus | null>(null);
   const actionSeqRef = useRef(0);
   const metricsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const vehicleSimRef = useRef<VehicleSim | null>(null);
   const liveCountersRef = useRef({ maxRank: -1, maxSev: '—', rules: new Set<string>(), total: 0 });
+
+  // Timed replay refs — these are mutable and don't need to trigger re-renders
+  const replayTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const scheduledFramesRef = useRef<ScheduledFrame[]>([]);
+  const replayStartWallRef = useRef<number>(0);   // wall-clock ms when replay started (or resumed)
+  const replayPausedElapsedRef = useRef<number>(0); // ms elapsed in scenario time when paused
+  const replaySpeedRef = useRef<ReplaySpeed>(10);   // mirror of replaySpeed for closure access
+  const publishFrameRef = useRef<((frame: ScenarioFrame, scenarioData: ScenarioFile, baseTs: number, bus: EventBus, localCounts: Record<string, number>, localMaxRankRef: { v: number }, localMaxSevRef: { v: string }, localRulesRef: { v: Set<string> }, localTotalRef: { v: number }, frameIdx: number) => void) | null>(null);
+
+  // Keep replaySpeedRef in sync for closure access
+  useEffect(() => {
+    replaySpeedRef.current = replaySpeed;
+  }, [replaySpeed]);
 
   // Live clock
   useEffect(() => {
@@ -683,134 +733,277 @@ export default function App() {
     };
   }, []);
 
-  const runScenario = useCallback(async () => {
+  // ─── Refs for pause/resume context ──────────────────────────────────────────
+  const replayBaseTsRef = useRef<number>(0);
+  const resumeAssetIdRef = useRef<string>('');
+  const resumeCountersRef = useRef<{
+    counts: { 'signals.raw': number; 'signals.features': number; 'decisions': number; 'decisions.gated': number };
+    maxRankRef: { v: number };
+    maxSevRef: { v: string };
+    rulesRef: { v: Set<string> };
+    totalRef: { v: number };
+  }>({
+    counts: { 'signals.raw': 0, 'signals.features': 0, 'decisions': 0, 'decisions.gated': 0 },
+    maxRankRef: { v: -1 },
+    maxSevRef: { v: '—' },
+    rulesRef: { v: new Set() },
+    totalRef: { v: 0 },
+  });
+
+  // ─── Cancel all pending replay timeouts ──────────────────────────────────────
+  const cancelReplayTimeouts = useCallback(() => {
+    for (const id of replayTimeoutsRef.current) clearTimeout(id);
+    replayTimeoutsRef.current = [];
+  }, []);
+
+  // ─── Publish one scenario frame onto the bus ──────────────────────────────────
+  const publishOneFrame = useCallback((frame: ScenarioFrame, asset_id: string, baseTs: number, bus: EventBus) => {
+    const signals: Record<string, number> = {};
+    for (const [k, v] of Object.entries(frame.signals)) {
+      if (typeof v === 'number') signals[k] = v;
+    }
+    const signalEvent: SignalEvent = {
+      ts: baseTs + frame.ts_offset_ms,
+      asset_id,
+      driver_id: 'DRV-DEMO',
+      source: 'SIMULATOR',
+      signals,
+    };
+    bus.publish('signals.raw', signalEvent);
+  }, []);
+
+  // ─── Wire bus subscriptions (shared between instant and timed modes) ──────────
+  const wireBusSubscriptions = useCallback((
+    bus: EventBus,
+    localCounts: { 'signals.raw': number; 'signals.features': number; 'decisions': number; 'decisions.gated': number },
+    localMaxRankRef: { v: number },
+    localMaxSevRef: { v: string },
+    localRulesRef: { v: Set<string> },
+    localTotalRef: { v: number },
+  ) => {
+    bus.subscribe('signals.raw', () => {
+      localCounts['signals.raw']++;
+      setPipelineCounts(prev => ({ ...prev, 'signals.raw': localCounts['signals.raw'] }));
+    });
+    bus.subscribe('signals.features', () => {
+      localCounts['signals.features']++;
+      setPipelineCounts(prev => ({ ...prev, 'signals.features': localCounts['signals.features'] }));
+    });
+    bus.subscribe('decisions', () => {
+      localCounts['decisions']++;
+      setPipelineCounts(prev => ({ ...prev, 'decisions': localCounts['decisions'] }));
+    });
+    bus.subscribe<Decision>('decisions.gated', (envelope: EventEnvelope<Decision>) => {
+      localCounts['decisions.gated']++;
+      localTotalRef.v++;
+      setPipelineCounts(prev => ({ ...prev, 'decisions.gated': localCounts['decisions.gated'] }));
+      const d = envelope.payload;
+      const rank = SEVERITY_ORDER[d.severity] ?? 0;
+      if (rank > localMaxRankRef.v) {
+        localMaxRankRef.v = rank;
+        localMaxSevRef.v = d.severity;
+        setMaxSeverity(d.severity);
+      }
+      localRulesRef.v.add(d.rule_id);
+      setRulesFired(new Set(localRulesRef.v));
+      setTotalEvents(localTotalRef.v);
+      setEvents(prev => [...prev, { envelope, receivedAt: Date.now() }]);
+      const tmpl = getActionForDecision(d);
+      actionSeqRef.current++;
+      const action: MobileAction = {
+        id: `act-${actionSeqRef.current}`,
+        ts: d.ts, severity: d.severity, asset_id: d.asset_id, rule_id: d.rule_id,
+        icon: tmpl.icon, title: tmpl.title, guidance: tmpl.guidance, speak: tmpl.speak,
+        raw_value: d.raw_value, threshold: d.threshold, acknowledged: false,
+      };
+      setMobileActions(prev => {
+        const next = [...prev, action];
+        return next.length > 50 ? next.slice(-50) : next;
+      });
+      bus.publish('actions', action);
+    });
+  }, []);
+
+  // ─── Schedule remaining frames (initial schedule and resume) ─────────────────
+  const scheduleFrames = useCallback((
+    frames: ScheduledFrame[],
+    startIdx: number,
+    scenarioDurationMs: number,
+    asset_id: string,
+    baseTs: number,
+    bus: EventBus,
+    localCounts: { 'signals.raw': number; 'signals.features': number; 'decisions': number; 'decisions.gated': number },
+    localMaxRankRef: { v: number },
+    localMaxSevRef: { v: string },
+    localRulesRef: { v: Set<string> },
+    localTotalRef: { v: number },
+    speed: ReplaySpeed,
+    pausedElapsedMs: number,
+  ) => {
+    cancelReplayTimeouts();
+    replayStartWallRef.current = performance.now();
+
+    for (let i = startIdx; i < frames.length; i++) {
+      const sf = frames[i];
+      const scenarioTimeRemaining = sf.delayMs - pausedElapsedMs;
+      const wallDelay = Math.max(0, scenarioTimeRemaining / speed);
+      const capturedIdx = i;
+
+      const tid = setTimeout(() => {
+        publishOneFrame(sf.frame, asset_id, baseTs, bus);
+        const scenarioElapsed = pausedElapsedMs + (performance.now() - replayStartWallRef.current) * speed;
+        setReplayProgress({
+          frame: capturedIdx + 1,
+          total: frames.length,
+          elapsedMs: scenarioElapsed,
+          scenarioDurationMs,
+        });
+        if (capturedIdx === frames.length - 1) {
+          setMetrics(bus.getMetrics());
+          setReplayState('done');
+          setRunning(false);
+          setShowSummary(true);
+          const maxSev = localMaxSevRef.v;
+          setStatus(`Complete — ${frames.length} frames replayed (max: ${maxSev === '—' ? 'no alerts' : maxSev})`);
+        }
+      }, wallDelay);
+
+      replayTimeoutsRef.current.push(tid);
+    }
+  }, [cancelReplayTimeouts, publishOneFrame]);
+
+  // ─── Stop timed replay ───────────────────────────────────────────────────────
+  const stopReplay = useCallback(() => {
+    cancelReplayTimeouts();
+    setReplayState('idle');
+    setRunning(false);
+    setShowSummary(false);
+    setStatus('Stopped');
+    if (busRef.current) setMetrics(busRef.current.getMetrics());
+  }, [cancelReplayTimeouts]);
+
+  // ─── Pause timed replay ──────────────────────────────────────────────────────
+  const pauseReplay = useCallback(() => {
+    const wallElapsed = performance.now() - replayStartWallRef.current;
+    const scenarioElapsed = replayPausedElapsedRef.current + wallElapsed * replaySpeedRef.current;
+    replayPausedElapsedRef.current = scenarioElapsed;
+    cancelReplayTimeouts();
+    setReplayState('paused');
+    setStatus('Paused — click Resume to continue');
+  }, [cancelReplayTimeouts]);
+
+  // ─── Resume timed replay ─────────────────────────────────────────────────────
+  const resumeReplay = useCallback(() => {
+    if (!busRef.current) return;
+    const frames = scheduledFramesRef.current;
+    const pausedAt = replayPausedElapsedRef.current;
+    const resumeIdx = frames.findIndex(sf => sf.delayMs > pausedAt);
+    if (resumeIdx === -1) { setReplayState('done'); setRunning(false); return; }
+    const scenarioDurationMs = frames.length > 1 ? frames[frames.length - 1].delayMs : 0;
+    const lc = resumeCountersRef.current;
+    setReplayState('running');
+    setStatus(`Resuming at frame ${resumeIdx + 1} of ${frames.length}…`);
+    scheduleFrames(
+      frames, resumeIdx, scenarioDurationMs,
+      resumeAssetIdRef.current, replayBaseTsRef.current, busRef.current,
+      lc.counts, lc.maxRankRef, lc.maxSevRef, lc.rulesRef, lc.totalRef,
+      replaySpeedRef.current, pausedAt,
+    );
+  }, [scheduleFrames]);
+
+  // ─── Run scenario — instant mode (original behavior) ─────────────────────────
+  const runScenarioInstant = useCallback(async () => {
     if (running) return;
     setRunning(true);
-    setStatus(`Loading scenario: ${scenario}…`);
-
-    // Reset state
-    setEvents([]);
-    setMobileActions([]);
-    setMaxSeverity('—');
-    setTotalEvents(0);
-    setRulesFired(new Set());
+    setShowSummary(false);
+    setReplayState('idle');
+    setStatus(`Loading: ${scenario}…`);
+    setEvents([]); setMobileActions([]); setMaxSeverity('—');
+    setTotalEvents(0); setRulesFired(new Set());
     setPipelineCounts({ 'signals.raw': 0, 'signals.features': 0, 'decisions': 0, 'decisions.gated': 0 });
     actionSeqRef.current = 0;
-
     try {
-      // Fetch scenario JSON (served from public/ = scenarios/ root)
       const [scenarioRes, policyRes] = await Promise.all([
-        fetch(`/scenarios/${scenario}.json`),
-        fetch('/policy/policy.yaml'),
+        fetch(`/scenarios/${scenario}.json`), fetch('/policy/policy.yaml'),
       ]);
-
       if (!scenarioRes.ok) throw new Error(`Scenario not found: scenarios/${scenario}.json (status ${scenarioRes.status})`);
       if (!policyRes.ok) throw new Error(`Policy not found: policy/policy.yaml (status ${policyRes.status})`);
-
       const scenarioData: ScenarioFile = await scenarioRes.json();
-      const policyYaml: string = await policyRes.text();
-      const policy = parseMinimalYaml(policyYaml);
-
-      setStatus(`Running: ${scenarioData.name} — ${scenarioData.frames.length} frames…`);
-
-      // Fresh bus instance for each run
-      const bus = new EventBus();
-      busRef.current = bus;
-      createPipeline(policy, bus);
-
-      // Local counters (avoid stale closure issues with React state)
+      const policy = parseMinimalYaml(await policyRes.text());
+      setStatus(`Running (instant): ${scenarioData.name} — ${scenarioData.frames.length} frames…`);
+      const bus = new EventBus(); busRef.current = bus; createPipeline(policy, bus);
       const localCounts = { 'signals.raw': 0, 'signals.features': 0, 'decisions': 0, 'decisions.gated': 0 };
-      let localMaxRank = -1;
-      let localMaxSev = '—';
-      const localRules = new Set<string>();
-      let localTotal = 0;
-
-      // Subscribe to all four pipeline topics for count tracking
-      bus.subscribe('signals.raw', () => {
-        localCounts['signals.raw']++;
-        setPipelineCounts(prev => ({ ...prev, 'signals.raw': localCounts['signals.raw'] }));
-      });
-
-      bus.subscribe('signals.features', () => {
-        localCounts['signals.features']++;
-        setPipelineCounts(prev => ({ ...prev, 'signals.features': localCounts['signals.features'] }));
-      });
-
-      bus.subscribe('decisions', () => {
-        localCounts['decisions']++;
-        setPipelineCounts(prev => ({ ...prev, 'decisions': localCounts['decisions'] }));
-      });
-
-      bus.subscribe<Decision>('decisions.gated', (envelope: EventEnvelope<Decision>) => {
-        localCounts['decisions.gated']++;
-        localTotal++;
-        setPipelineCounts(prev => ({ ...prev, 'decisions.gated': localCounts['decisions.gated'] }));
-
-        const d = envelope.payload;
-        const rank = SEVERITY_ORDER[d.severity] ?? 0;
-        if (rank > localMaxRank) {
-          localMaxRank = rank;
-          localMaxSev = d.severity;
-          setMaxSeverity(d.severity);
-        }
-        localRules.add(d.rule_id);
-        setRulesFired(new Set(localRules));
-        setTotalEvents(localTotal);
-        setEvents(prev => [...prev, { envelope, receivedAt: Date.now() }]);
-
-        // Generate mobile action for driver
-        const tmpl = getActionForDecision(d);
-        actionSeqRef.current++;
-        const action: MobileAction = {
-          id: `act-${actionSeqRef.current}`,
-          ts: d.ts,
-          severity: d.severity,
-          asset_id: d.asset_id,
-          rule_id: d.rule_id,
-          icon: tmpl.icon,
-          title: tmpl.title,
-          guidance: tmpl.guidance,
-          speak: tmpl.speak,
-          raw_value: d.raw_value,
-          threshold: d.threshold,
-          acknowledged: false,
-        };
-        setMobileActions(prev => {
-          const next = [...prev, action];
-          return next.length > 50 ? next.slice(-50) : next;
-        });
-        // Publish action on bus for Person B
-        bus.publish('actions', action);
-      });
-
+      const localMaxRankRef = { v: -1 }; const localMaxSevRef = { v: '—' };
+      const localRulesRef = { v: new Set<string>() }; const localTotalRef = { v: 0 };
+      wireBusSubscriptions(bus, localCounts, localMaxRankRef, localMaxSevRef, localRulesRef, localTotalRef);
       const baseTs = Date.now();
-
-      // Publish all frames synchronously (the bus is in-process synchronous)
-      for (const frame of scenarioData.frames) {
-        const signals: Record<string, number> = {};
-        for (const [k, v] of Object.entries(frame.signals)) {
-          if (typeof v === 'number') signals[k] = v;
-        }
-        const signalEvent: SignalEvent = {
-          ts: baseTs + frame.ts_offset_ms,
-          asset_id: scenarioData.asset_id,
-          driver_id: 'DRV-DEMO',
-          source: 'SIMULATOR',
-          signals,
-        };
-        bus.publish('signals.raw', signalEvent);
-      }
-
-      // Final metrics snapshot
+      for (const frame of scenarioData.frames) publishOneFrame(frame, scenarioData.asset_id, baseTs, bus);
       setMetrics(bus.getMetrics());
-      setStatus(`Complete — ${scenarioData.name} (${scenarioData.frames.length} frames, max severity: ${localMaxSev})`);
+      setReplayProgress({ frame: scenarioData.frames.length, total: scenarioData.frames.length, elapsedMs: 0, scenarioDurationMs: 0 });
+      setShowSummary(true);
+      setStatus(`Complete — ${scenarioData.name} (${scenarioData.frames.length} frames, max: ${localMaxSevRef.v})`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setStatus(`Error: ${msg}`);
+      setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRunning(false);
     }
-  }, [scenario, running]);
+  }, [scenario, running, wireBusSubscriptions, publishOneFrame]);
+
+  // ─── Run scenario — timed replay mode ────────────────────────────────────────
+  const runScenarioTimed = useCallback(async () => {
+    if (running) return;
+    setRunning(true);
+    setReplayState('running');
+    setShowSummary(false);
+    setStatus(`Loading: ${scenario}…`);
+    setEvents([]); setMobileActions([]); setMaxSeverity('—');
+    setTotalEvents(0); setRulesFired(new Set());
+    setPipelineCounts({ 'signals.raw': 0, 'signals.features': 0, 'decisions': 0, 'decisions.gated': 0 });
+    setReplayProgress({ frame: 0, total: 0, elapsedMs: 0, scenarioDurationMs: 0 });
+    actionSeqRef.current = 0;
+    replayPausedElapsedRef.current = 0;
+    try {
+      const [scenarioRes, policyRes] = await Promise.all([
+        fetch(`/scenarios/${scenario}.json`), fetch('/policy/policy.yaml'),
+      ]);
+      if (!scenarioRes.ok) throw new Error(`Scenario not found: scenarios/${scenario}.json (status ${scenarioRes.status})`);
+      if (!policyRes.ok) throw new Error(`Policy not found: policy/policy.yaml (status ${policyRes.status})`);
+      const scenarioData: ScenarioFile = await scenarioRes.json();
+      const policy = parseMinimalYaml(await policyRes.text());
+      const frames = scenarioData.frames;
+      const offset0 = frames[0]?.ts_offset_ms ?? 0;
+      const scenarioDurationMs = frames.length > 1 ? frames[frames.length - 1].ts_offset_ms - offset0 : 0;
+      setStatus(`Replaying: ${scenarioData.name} — ${frames.length} frames at ${replaySpeed}x…`);
+      setReplayProgress({ frame: 0, total: frames.length, elapsedMs: 0, scenarioDurationMs });
+      const bus = new EventBus(); busRef.current = bus; createPipeline(policy, bus);
+      const localCounts = { 'signals.raw': 0, 'signals.features': 0, 'decisions': 0, 'decisions.gated': 0 };
+      const localMaxRankRef = { v: -1 }; const localMaxSevRef = { v: '—' };
+      const localRulesRef = { v: new Set<string>() }; const localTotalRef = { v: 0 };
+      wireBusSubscriptions(bus, localCounts, localMaxRankRef, localMaxSevRef, localRulesRef, localTotalRef);
+      const scheduled: ScheduledFrame[] = frames.map(f => ({ frame: f, delayMs: f.ts_offset_ms - offset0 }));
+      scheduledFramesRef.current = scheduled;
+      replayBaseTsRef.current = Date.now();
+      resumeAssetIdRef.current = scenarioData.asset_id;
+      resumeCountersRef.current = {
+        counts: localCounts, maxRankRef: localMaxRankRef, maxSevRef: localMaxSevRef,
+        rulesRef: localRulesRef, totalRef: localTotalRef,
+      };
+      scheduleFrames(
+        scheduled, 0, scenarioDurationMs,
+        scenarioData.asset_id, replayBaseTsRef.current, bus,
+        localCounts, localMaxRankRef, localMaxSevRef, localRulesRef, localTotalRef,
+        replaySpeed, 0,
+      );
+    } catch (err) {
+      setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      setRunning(false); setReplayState('idle');
+    }
+  }, [scenario, running, replaySpeed, wireBusSubscriptions, scheduleFrames]);
+
+  // ─── Unified dispatcher ──────────────────────────────────────────────────────
+  const runScenario = useCallback(() => {
+    return replayMode === 'instant' ? runScenarioInstant() : runScenarioTimed();
+  }, [replayMode, runScenarioInstant, runScenarioTimed]);
 
   const stopLive = useCallback(() => {
     if (liveTimerRef.current) {
@@ -936,12 +1129,94 @@ export default function App() {
     }
   }, [running]);
 
+  // ─── WS Live callbacks ────────────────────────────────────────────────────────
+
+  const stopWsLive = useCallback(() => {
+    if (wsReconnectTimerRef.current) {
+      clearTimeout(wsReconnectTimerRef.current);
+      wsReconnectTimerRef.current = null;
+    }
+    if (wsRef.current) {
+      // Remove listeners first so onclose does not trigger auto-reconnect
+      wsRef.current.onclose = null;
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setWsConnected(false);
+    setWsConnecting(false);
+    setStatus('WS Live disconnected');
+  }, []);
+
+  const startWsLive = useCallback((wsUrl = 'ws://localhost:4200') => {
+    if (wsRef.current) {
+      stopWsLive();
+    }
+    setWsConnecting(true);
+    setStatus(`Connecting to ${wsUrl}…`);
+
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setWsConnected(true);
+      setWsConnecting(false);
+      setStatus(`WS Live — connected to ${wsUrl}`);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const envelope = JSON.parse(event.data as string) as EventEnvelope<unknown>;
+
+        // Only surface decisions.gated and actions in the event feed
+        if (envelope.topic !== 'decisions.gated' && envelope.topic !== 'actions') return;
+
+        if (envelope.topic === 'decisions.gated') {
+          const d = envelope.payload as Decision;
+          setEvents(prev => {
+            const next = [...prev, { envelope: envelope as EventEnvelope<Decision>, receivedAt: Date.now() }];
+            return next.length > 200 ? next.slice(-200) : next;
+          });
+          setTotalEvents(prev => prev + 1);
+          setMaxSeverity(prev => {
+            const prevRank = SEVERITY_ORDER[prev === '—' ? 'NORMAL' : prev] ?? 0;
+            const newRank  = SEVERITY_ORDER[d.severity] ?? 0;
+            return newRank > prevRank ? d.severity : prev;
+          });
+          setRulesFired(prev => new Set([...prev, d.rule_id]));
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    };
+
+    ws.onerror = () => {
+      setWsConnected(false);
+      setWsConnecting(false);
+      setStatus('WS Live — connection error');
+    };
+
+    ws.onclose = () => {
+      setWsConnected(false);
+      setWsConnecting(false);
+      // Auto-reconnect after 3 seconds
+      setStatus('WS Live — disconnected, reconnecting in 3s…');
+      wsReconnectTimerRef.current = setTimeout(() => {
+        if (wsRef.current === null) return; // stopped deliberately
+        startWsLive(wsUrl);
+      }, 3000);
+    };
+  }, [stopWsLive]);
+
+  // ─── Cleanup on unmount ───────────────────────────────────────────────────────
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+      cancelReplayTimeouts();
+      stopWsLive();
     };
-  }, []);
+  }, [stopWsLive, cancelReplayTimeouts]);
 
   const maxSevStyle = getSeverityStyle(maxSeverity === '—' ? 'NORMAL' : maxSeverity);
 
@@ -1064,6 +1339,45 @@ export default function App() {
           >
             {simMode === 'live' ? 'Stop Live' : 'Live Mode'}
           </button>
+
+          {/* WS Live toggle — connects to server.ts bridge on ws://localhost:4200 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {/* Connection status dot */}
+            <span
+              title={wsConnected ? 'WS bridge connected' : wsConnecting ? 'Connecting…' : 'WS bridge disconnected'}
+              style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: wsConnected ? '#3fb950' : wsConnecting ? '#e3b341' : '#484f58',
+                flexShrink: 0,
+                transition: 'background 0.3s',
+                animation: wsConnecting ? 'pulse 1s ease-in-out infinite' : 'none',
+              }}
+            />
+            <button
+              onClick={wsConnected || wsConnecting ? stopWsLive : () => startWsLive()}
+              style={{
+                background: wsConnected
+                  ? 'linear-gradient(135deg, #da3633, #f85149)'
+                  : wsConnecting
+                    ? '#21262d'
+                    : 'linear-gradient(135deg, #6e40c9, #8957e5)',
+                color: wsConnecting ? '#484f58' : '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 14px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: wsConnecting ? 'wait' : 'pointer',
+                transition: 'all 0.15s',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {wsConnected ? 'Disconnect WS' : wsConnecting ? 'Connecting…' : 'WS Live'}
+            </button>
+          </div>
 
           <div style={{
             fontFamily: 'monospace',
