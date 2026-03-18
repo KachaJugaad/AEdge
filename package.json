@@ -6,6 +6,9 @@
     "test": "pnpm -r test",
     "gate:0": "ts-node -r tsconfig-paths/register --project gate-tests/tsconfig.json gate-tests/phase0.gate.ts"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  },
   "devDependencies": {
     "@types/node": "^20.12.0",
     "ts-node": "^10.9.2",

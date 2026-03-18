@@ -1,3 +1,4 @@
 packages:
   - 'packages/*'
   - 'gate-tests'
+  - 'cloud-api'
