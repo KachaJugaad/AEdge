@@ -13,6 +13,21 @@ import { EventBus } from '@anomedge/bus';
 import { createPipeline } from '@anomedge/core';
 import type { BusMetrics } from '@anomedge/bus';
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ScenarioFrame {
+  ts_offset_ms: number;
+  signals: Record<string, number | boolean>;
+}
+
+interface ScenarioFile {
+  name: string;
+  asset_id: string;
+  expected_alerts: string[];
+  expected_max_severity: string;
+  frames: ScenarioFrame[];
+}
+
 // ─── Replay types ─────────────────────────────────────────────────────────────
 
 type ReplayMode = 'instant' | 'timed';
@@ -29,22 +44,7 @@ interface ReplayProgress {
 // Scheduled frame descriptor used for pause/resume
 interface ScheduledFrame {
   frame: ScenarioFrame;
-  delayMs: number; // original delay from start
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface ScenarioFrame {
-  ts_offset_ms: number;
-  signals: Record<string, number | boolean>;
-}
-
-interface ScenarioFile {
-  name: string;
-  asset_id: string;
-  expected_alerts: string[];
-  expected_max_severity: string;
-  frames: ScenarioFrame[];
+  delayMs: number; // original delay from start of scenario
 }
 
 type ActiveTab = 'feed' | 'metrics' | 'pipeline' | 'mobile';
@@ -705,8 +705,6 @@ export default function App() {
   const replayStartWallRef = useRef<number>(0);   // wall-clock ms when replay started (or resumed)
   const replayPausedElapsedRef = useRef<number>(0); // ms elapsed in scenario time when paused
   const replaySpeedRef = useRef<ReplaySpeed>(10);   // mirror of replaySpeed for closure access
-  const publishFrameRef = useRef<((frame: ScenarioFrame, scenarioData: ScenarioFile, baseTs: number, bus: EventBus, localCounts: Record<string, number>, localMaxRankRef: { v: number }, localMaxSevRef: { v: string }, localRulesRef: { v: Set<string> }, localTotalRef: { v: number }, frameIdx: number) => void) | null>(null);
-
   // Keep replaySpeedRef in sync for closure access
   useEffect(() => {
     replaySpeedRef.current = replaySpeed;
@@ -1227,6 +1225,14 @@ export default function App() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.55; }
         }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes progressStripe {
+          from { background-position: 0 0; }
+          to   { background-position: 32px 0; }
+        }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #161b22; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
@@ -1270,127 +1276,257 @@ export default function App() {
 
         {/* Control bar */}
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          padding: '12px 24px',
+          padding: '10px 24px',
           borderBottom: '1px solid #21262d',
           background: '#0d1117',
-          flexWrap: 'wrap',
         }}>
-          <label style={{ fontSize: '13px', color: '#8b949e', whiteSpace: 'nowrap' }}>Scenario:</label>
-          <select
-            value={scenario}
-            onChange={e => setScenario(e.target.value as ScenarioName)}
-            disabled={running}
-            style={{
-              background: '#161b22',
-              color: '#e6edf3',
-              border: '1px solid #30363d',
-              borderRadius: '6px',
-              padding: '6px 10px',
-              fontSize: '13px',
-              fontFamily: 'monospace',
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-          >
-            {SCENARIOS.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          {/* Row 1 — scenario selector + mode + speed + action buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
 
-          <button
-            onClick={runScenario}
-            disabled={running}
-            style={{
-              background: running ? '#21262d' : 'linear-gradient(135deg, #238636, #2ea043)',
-              color: running ? '#484f58' : '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '6px 16px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: running ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {running && simMode === 'scenario' ? 'Running…' : 'Run Scenario'}
-          </button>
-
-          <button
-            onClick={simMode === 'live' ? stopLive : startLive}
-            disabled={running && simMode !== 'live'}
-            style={{
-              background: simMode === 'live'
-                ? 'linear-gradient(135deg, #da3633, #f85149)'
-                : (running ? '#21262d' : 'linear-gradient(135deg, #1f6feb, #388bfd)'),
-              color: (running && simMode !== 'live') ? '#484f58' : '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '6px 16px',
-              fontSize: '13px',
-              fontWeight: 600,
-              cursor: (running && simMode !== 'live') ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {simMode === 'live' ? 'Stop Live' : 'Live Mode'}
-          </button>
-
-          {/* WS Live toggle — connects to server.ts bridge on ws://localhost:4200 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {/* Connection status dot */}
-            <span
-              title={wsConnected ? 'WS bridge connected' : wsConnecting ? 'Connecting…' : 'WS bridge disconnected'}
+            {/* Scenario selector */}
+            <label style={{ fontSize: '12px', color: '#6e7681', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>Scenario</label>
+            <select
+              value={scenario}
+              onChange={e => setScenario(e.target.value as ScenarioName)}
+              disabled={running}
               style={{
-                display: 'inline-block',
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: wsConnected ? '#3fb950' : wsConnecting ? '#e3b341' : '#484f58',
-                flexShrink: 0,
-                transition: 'background 0.3s',
-                animation: wsConnecting ? 'pulse 1s ease-in-out infinite' : 'none',
-              }}
-            />
-            <button
-              onClick={wsConnected || wsConnecting ? stopWsLive : () => startWsLive()}
-              style={{
-                background: wsConnected
-                  ? 'linear-gradient(135deg, #da3633, #f85149)'
-                  : wsConnecting
-                    ? '#21262d'
-                    : 'linear-gradient(135deg, #6e40c9, #8957e5)',
-                color: wsConnecting ? '#484f58' : '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '6px 14px',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: wsConnecting ? 'wait' : 'pointer',
-                transition: 'all 0.15s',
-                whiteSpace: 'nowrap',
+                background: '#161b22', color: '#e6edf3', border: '1px solid #30363d',
+                borderRadius: '6px', padding: '5px 10px', fontSize: '12px',
+                fontFamily: 'monospace', cursor: running ? 'not-allowed' : 'pointer', outline: 'none',
               }}
             >
-              {wsConnected ? 'Disconnect WS' : wsConnecting ? 'Connecting…' : 'WS Live'}
+              {SCENARIOS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+
+            {/* Divider */}
+            <span style={{ color: '#21262d', fontSize: '18px', margin: '0 2px' }}>|</span>
+
+            {/* Mode toggle: Instant / Timed */}
+            <label style={{ fontSize: '12px', color: '#6e7681', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>Mode</label>
+            <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #30363d' }}>
+              {(['instant', 'timed'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => !running && setReplayMode(m)}
+                  disabled={running}
+                  style={{
+                    background: replayMode === m ? '#238636' : '#161b22',
+                    color: replayMode === m ? '#fff' : '#8b949e',
+                    border: 'none', padding: '5px 12px', fontSize: '12px',
+                    fontWeight: replayMode === m ? 600 : 400,
+                    cursor: running ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s', whiteSpace: 'nowrap',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {m === 'instant' ? 'Instant' : 'Timed'}
+                </button>
+              ))}
+            </div>
+
+            {/* Speed selector — only shown in timed mode */}
+            {replayMode === 'timed' && (
+              <>
+                <label style={{ fontSize: '12px', color: '#6e7681', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>Speed</label>
+                <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid #30363d' }}>
+                  {REPLAY_SPEEDS.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => !running && setReplaySpeed(s)}
+                      disabled={running}
+                      style={{
+                        background: replaySpeed === s ? '#1f6feb' : '#161b22',
+                        color: replaySpeed === s ? '#fff' : '#8b949e',
+                        border: 'none', padding: '5px 10px', fontSize: '12px',
+                        fontWeight: replaySpeed === s ? 600 : 400,
+                        cursor: running ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {s}x
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Divider */}
+            <span style={{ color: '#21262d', fontSize: '18px', margin: '0 2px' }}>|</span>
+
+            {/* Run Scenario button */}
+            {!running || replayState === 'idle' ? (
+              <button
+                onClick={runScenario}
+                disabled={running}
+                style={{
+                  background: running ? '#21262d' : 'linear-gradient(135deg, #238636, #2ea043)',
+                  color: running ? '#484f58' : '#fff',
+                  border: 'none', borderRadius: '6px', padding: '6px 16px',
+                  fontSize: '13px', fontWeight: 600,
+                  cursor: running ? 'not-allowed' : 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+              >
+                Run Scenario
+              </button>
+            ) : null}
+
+            {/* Pause / Resume buttons — timed replay only */}
+            {replayMode === 'timed' && replayState === 'running' && (
+              <button
+                onClick={pauseReplay}
+                style={{
+                  background: 'linear-gradient(135deg, #9e6a03, #e3b341)',
+                  color: '#0d1117', border: 'none', borderRadius: '6px', padding: '6px 14px',
+                  fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+              >
+                Pause
+              </button>
+            )}
+            {replayMode === 'timed' && replayState === 'paused' && (
+              <button
+                onClick={resumeReplay}
+                style={{
+                  background: 'linear-gradient(135deg, #238636, #2ea043)',
+                  color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px',
+                  fontSize: '13px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+              >
+                Resume
+              </button>
+            )}
+            {replayMode === 'timed' && (replayState === 'running' || replayState === 'paused') && (
+              <button
+                onClick={stopReplay}
+                style={{
+                  background: 'linear-gradient(135deg, #6e1010, #da3633)',
+                  color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px',
+                  fontSize: '13px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+              >
+                Stop
+              </button>
+            )}
+
+            {/* Live Mode button */}
+            <button
+              onClick={simMode === 'live' ? stopLive : startLive}
+              disabled={running && simMode !== 'live'}
+              style={{
+                background: simMode === 'live'
+                  ? 'linear-gradient(135deg, #da3633, #f85149)'
+                  : (running ? '#21262d' : 'linear-gradient(135deg, #1f6feb, #388bfd)'),
+                color: (running && simMode !== 'live') ? '#484f58' : '#fff',
+                border: 'none', borderRadius: '6px', padding: '6px 14px',
+                fontSize: '13px', fontWeight: 600,
+                cursor: (running && simMode !== 'live') ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s', whiteSpace: 'nowrap',
+              }}
+            >
+              {simMode === 'live' ? 'Stop Live' : 'Live Mode'}
             </button>
+
+            {/* WS Live toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span
+                title={wsConnected ? 'WS bridge connected' : wsConnecting ? 'Connecting…' : 'WS bridge disconnected'}
+                style={{
+                  display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
+                  background: wsConnected ? '#3fb950' : wsConnecting ? '#e3b341' : '#484f58',
+                  flexShrink: 0, transition: 'background 0.3s',
+                  animation: wsConnecting ? 'pulse 1s ease-in-out infinite' : 'none',
+                }}
+              />
+              <button
+                onClick={wsConnected || wsConnecting ? stopWsLive : () => startWsLive()}
+                style={{
+                  background: wsConnected
+                    ? 'linear-gradient(135deg, #da3633, #f85149)'
+                    : wsConnecting ? '#21262d' : 'linear-gradient(135deg, #6e40c9, #8957e5)',
+                  color: wsConnecting ? '#484f58' : '#fff', border: 'none', borderRadius: '6px',
+                  padding: '6px 12px', fontSize: '13px', fontWeight: 600,
+                  cursor: wsConnecting ? 'wait' : 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                }}
+              >
+                {wsConnected ? 'Disconnect WS' : wsConnecting ? 'Connecting…' : 'WS Live'}
+              </button>
+            </div>
+
+            {/* Status text */}
+            <div style={{
+              fontFamily: 'monospace', fontSize: '12px',
+              color: status.startsWith('Error') ? '#f97583' : '#8b949e',
+              flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {status}
+            </div>
           </div>
 
-          <div style={{
-            fontFamily: 'monospace',
-            fontSize: '12px',
-            color: status.startsWith('Error') ? '#f97583' : '#8b949e',
-            flex: 1,
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {status}
-          </div>
+          {/* Row 2 — progress bar (timed mode, visible when running or paused) */}
+          {replayMode === 'timed' && (replayState === 'running' || replayState === 'paused') && replayProgress.total > 0 && (
+            <div style={{ marginTop: '10px', animation: 'fadeSlideIn 0.2s ease-out' }}>
+              {/* Frame counter + elapsed time */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#8b949e' }}>
+                  Frame {replayProgress.frame} of {replayProgress.total}
+                  {replayState === 'paused' && <span style={{ color: '#e3b341', marginLeft: '8px' }}>[PAUSED]</span>}
+                </span>
+                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#6e7681' }}>
+                  {(replayProgress.elapsedMs / 1000).toFixed(1)}s / {(replayProgress.scenarioDurationMs / 1000).toFixed(0)}s
+                  {' '}({replaySpeed}x)
+                </span>
+              </div>
+              {/* Progress track */}
+              <div style={{ height: '5px', background: '#21262d', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(100, (replayProgress.frame / replayProgress.total) * 100)}%`,
+                  background: replayState === 'paused'
+                    ? '#e3b341'
+                    : 'linear-gradient(90deg, #388bfd, #58a6ff)',
+                  borderRadius: '3px',
+                  transition: 'width 0.3s ease-out',
+                  backgroundSize: replayState === 'running' ? '32px 100%' : 'auto',
+                  animation: replayState === 'running' ? 'progressStripe 0.8s linear infinite' : 'none',
+                  backgroundImage: replayState === 'running'
+                    ? 'repeating-linear-gradient(45deg, rgba(255,255,255,0.08) 0px, rgba(255,255,255,0.08) 8px, transparent 8px, transparent 16px)'
+                    : 'none',
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* Summary banner — shown on completion */}
+          {showSummary && replayMode === 'timed' && replayState === 'done' && (
+            <div style={{
+              marginTop: '10px',
+              padding: '10px 16px',
+              background: '#0f2a14',
+              border: '1px solid #2ea043',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              animation: 'fadeSlideIn 0.3s ease-out',
+            }}>
+              <span style={{ fontSize: '18px' }}>{'✓'}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#3fb950', fontWeight: 600 }}>
+                Replay complete
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#8b949e' }}>
+                {replayProgress.total} frames · max severity: {maxSeverity} · {totalEvents} decision{totalEvents !== 1 ? 's' : ''} · rules: {[...rulesFired].join(', ') || 'none'}
+              </span>
+              <button
+                onClick={() => setShowSummary(false)}
+                style={{
+                  marginLeft: 'auto', background: 'none', border: 'none', color: '#484f58',
+                  fontSize: '16px', cursor: 'pointer', padding: '0 4px', lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Main content */}
