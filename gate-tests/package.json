@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "gate:0": "ts-node -r tsconfig-paths/register --project tsconfig.json phase0.gate.ts",
-    "gate:1": "ts-node phase1.gate.ts",
+    "gate:1": "ts-node -r tsconfig-paths/register --project tsconfig.json phase1.gate.ts",
     "gate:2": "ts-node phase2.gate.ts"
   },
   "dependencies": {
