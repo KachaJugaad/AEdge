@@ -40,3 +40,7 @@ dist/
 
 # Misc
 run2CreateAgents.sh
+
+# Architecture docs (internal only)
+PERSONA_A_SETUP_GUIDE.md
+NEXT_STEPS_ARCHITECTURE.md
