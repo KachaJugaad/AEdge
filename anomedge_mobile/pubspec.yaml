@@ -1,0 +1,40 @@
+name: anomedge_mobile
+description: AnomEdge - Offline-first edge AI safety intelligence for remote industrial environments.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Offline SQLite queue
+  sqflite: ^2.3.0
+  path: ^1.8.3
+
+  # Connectivity detection
+  connectivity_plus: ^5.0.2
+
+  # Text-to-speech for HIGH/CRITICAL alerts
+  flutter_tts: ^3.8.5
+
+  # HTTP for SyncAgent cloud upload
+  http: ^1.1.0
+
+  # Shared preferences for settings
+  shared_preferences: ^2.2.2
+
+  # UUID for event envelope IDs
+  uuid: ^4.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  mockito: ^5.4.3
+  build_runner: ^2.4.7
+  sqflite_common_ffi: ^2.3.3
+
+flutter:
+  uses-material-design: true
